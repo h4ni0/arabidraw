@@ -138,6 +138,11 @@ export const FONT_FAMILY = {
   "Comic Shanns": 8,
   "Liberation Sans": 9,
   Assistant: 10,
+  "Qomra Arabic Light": 11,
+  "Qomra Arabic": 12,
+  "Qomra Arabic Medium": 13,
+  "Qomra Arabic Bold": 14,
+  "Qomra Arabic Black": 15,
 };
 
 // Segoe UI Emoji fails to properly fallback for some glyphs: ∞, ∫, ≠

@@ -40,6 +40,13 @@ import { HelveticaFontFaces } from "./Helvetica";
 import { LiberationFontFaces } from "./Liberation";
 import { LilitaFontFaces } from "./Lilita";
 import { NunitoFontFaces } from "./Nunito";
+import {
+  QomraArabicLightFontFaces,
+  QomraArabicFontFaces,
+  QomraArabicMediumFontFaces,
+  QomraArabicBoldFontFaces,
+  QomraArabicBlackFontFaces,
+} from "./QomraArabic";
 import { VirgilFontFaces } from "./Virgil";
 import { XiaolaiFontFaces } from "./Xiaolai";
 
@@ -391,6 +398,11 @@ export class Fonts {
     init("Liberation Sans", ...LiberationFontFaces);
     init("Lilita One", ...LilitaFontFaces);
     init("Nunito", ...NunitoFontFaces);
+    init("Qomra Arabic Light", ...QomraArabicLightFontFaces);
+    init("Qomra Arabic", ...QomraArabicFontFaces);
+    init("Qomra Arabic Medium", ...QomraArabicMediumFontFaces);
+    init("Qomra Arabic Bold", ...QomraArabicBoldFontFaces);
+    init("Qomra Arabic Black", ...QomraArabicBlackFontFaces);
     init("Virgil", ...VirgilFontFaces);
 
     // fallback font faces

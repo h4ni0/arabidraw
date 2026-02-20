@@ -120,6 +120,46 @@ export const FONT_METADATA: Record<number, FontMetadata> = {
     },
     fallback: true,
   },
+  [FONT_FAMILY["Qomra Arabic Light"]]: {
+    metrics: {
+      unitsPerEm: 2048,
+      ascender: 1843,
+      descender: -998,
+      lineHeight: 1.25,
+    },
+  },
+  [FONT_FAMILY["Qomra Arabic"]]: {
+    metrics: {
+      unitsPerEm: 2048,
+      ascender: 1851,
+      descender: -998,
+      lineHeight: 1.25,
+    },
+  },
+  [FONT_FAMILY["Qomra Arabic Medium"]]: {
+    metrics: {
+      unitsPerEm: 2048,
+      ascender: 1864,
+      descender: -998,
+      lineHeight: 1.25,
+    },
+  },
+  [FONT_FAMILY["Qomra Arabic Bold"]]: {
+    metrics: {
+      unitsPerEm: 2048,
+      ascender: 1876,
+      descender: -998,
+      lineHeight: 1.25,
+    },
+  },
+  [FONT_FAMILY["Qomra Arabic Black"]]: {
+    metrics: {
+      unitsPerEm: 2048,
+      ascender: 1894,
+      descender: -998,
+      lineHeight: 1.25,
+    },
+  },
   [FONT_FAMILY_FALLBACKS["Segoe UI Emoji"]]: {
     metrics: {
       // reusing Excalifont metrics
