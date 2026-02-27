@@ -19,6 +19,7 @@ import { ShapeCache } from "@excalidraw/element";
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 
 import { actionToggleStats } from "../actions";
+import { actionTogglePresentationMode } from "../actions/actionTogglePresentationMode";
 import { trackEvent } from "../analytics";
 import { TunnelsContext, useInitializeTunnels } from "../context/tunnels";
 import { UIAppStateContext } from "../context/ui-appState";
@@ -31,6 +32,7 @@ import {
   SelectedShapeActions,
   ShapesSwitcher,
   CompactShapeActions,
+  ExitPresentationModeButton,
 } from "./Actions";
 import { LoadingMessage } from "./LoadingMessage";
 import { LockButton } from "./LockButton";
@@ -46,7 +48,7 @@ import MainMenu from "./main-menu/MainMenu";
 import { ActiveConfirmDialog } from "./ActiveConfirmDialog";
 import { useEditorInterface, useStylesPanelMode } from "./App";
 import { OverwriteConfirmDialog } from "./OverwriteConfirm/OverwriteConfirm";
-import { sidebarRightIcon } from "./icons";
+import { presentationModeIcon, sidebarRightIcon } from "./icons";
 import { DefaultSidebar } from "./DefaultSidebar";
 import { TTDDialog } from "./TTDDialog/TTDDialog";
 import { Stats } from "./Stats";
@@ -586,55 +588,74 @@ const LayerUI = ({
           UIOptions={UIOptions}
         />
       )}
-      {editorInterface.formFactor !== "phone" && (
-        <>
-          <div
-            className="layer-ui__wrapper"
-            style={
-              appState.openSidebar &&
-              isSidebarDocked &&
-              editorInterface.canFitSidebar
-                ? { width: `calc(100% - var(--right-sidebar-width))` }
-                : {}
-            }
-          >
-            {renderWelcomeScreen && <tunnels.WelcomeScreenCenterTunnel.Out />}
-            {renderFixedSideContainer()}
-            <Footer
-              appState={appState}
-              actionManager={actionManager}
-              showExitZenModeBtn={showExitZenModeBtn}
-              renderWelcomeScreen={renderWelcomeScreen}
-            />
-            {(appState.toast || appState.scrolledOutside) && (
-              <div className="floating-status-stack">
-                {appState.toast && (
-                  <Toast
-                    message={appState.toast.message}
-                    onClose={() => setAppState({ toast: null })}
-                    duration={appState.toast.duration}
-                    closable={appState.toast.closable}
-                  />
-                )}
-                {!appState.toast && appState.scrolledOutside && (
-                  <button
-                    type="button"
-                    className="scroll-back-to-content"
-                    onClick={() => {
-                      setAppState((appState) => ({
-                        ...calculateScrollCenter(elements, appState),
-                      }));
-                    }}
-                  >
-                    {t("buttons.scrollBackToContent")}
-                  </button>
-                )}
-              </div>
-            )}
+      {editorInterface.formFactor !== "phone" &&
+        appState.presentationModeEnabled && (
+          <div className="layer-ui__wrapper">
+            <div className="presentation-mode-exit-container">
+              <ExitPresentationModeButton actionManager={actionManager} />
+            </div>
           </div>
-          {renderSidebars()}
-        </>
-      )}
+        )}
+      {editorInterface.formFactor !== "phone" &&
+        !appState.presentationModeEnabled && (
+          <>
+            <div
+              className="layer-ui__wrapper"
+              style={
+                appState.openSidebar &&
+                isSidebarDocked &&
+                editorInterface.canFitSidebar
+                  ? { width: `calc(100% - var(--right-sidebar-width))` }
+                  : {}
+              }
+            >
+              {renderWelcomeScreen && <tunnels.WelcomeScreenCenterTunnel.Out />}
+              {renderFixedSideContainer()}
+              <Footer
+                appState={appState}
+                actionManager={actionManager}
+                showExitZenModeBtn={showExitZenModeBtn}
+                renderWelcomeScreen={renderWelcomeScreen}
+              />
+              {(appState.toast || appState.scrolledOutside) && (
+                <div className="floating-status-stack">
+                  {appState.toast && (
+                    <Toast
+                      message={appState.toast.message}
+                      onClose={() => setAppState({ toast: null })}
+                      duration={appState.toast.duration}
+                      closable={appState.toast.closable}
+                    />
+                  )}
+                  {!appState.toast && appState.scrolledOutside && (
+                    <button
+                      type="button"
+                      className="scroll-back-to-content"
+                      onClick={() => {
+                        setAppState((appState) => ({
+                          ...calculateScrollCenter(elements, appState),
+                        }));
+                      }}
+                    >
+                      {t("buttons.scrollBackToContent")}
+                    </button>
+                  )}
+                </div>
+              )}
+              <button
+                type="button"
+                className="presentation-mode-button"
+                title={t("buttons.presentationMode")}
+                onClick={() =>
+                  actionManager.executeAction(actionTogglePresentationMode)
+                }
+              >
+                {presentationModeIcon}
+              </button>
+            </div>
+            {renderSidebars()}
+          </>
+        )}
     </>
   );
 

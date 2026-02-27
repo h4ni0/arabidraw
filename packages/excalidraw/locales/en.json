@@ -247,6 +247,8 @@
     "zenMode": "Zen mode",
     "objectsSnapMode": "Snap to objects",
     "exitZenMode": "Exit zen mode",
+    "presentationMode": "Presentation mode",
+    "exitPresentationMode": "Exit presentation mode",
     "cancel": "Cancel",
     "saveLibNames": "Save name(s) and exit",
     "clear": "Clear",

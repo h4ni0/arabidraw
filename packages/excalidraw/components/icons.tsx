@@ -1954,6 +1954,34 @@ export const ArrowRightIcon = createIcon(
   modifiedTablerIconProps,
 );
 
+export const presentationModeIcon = createIcon(
+  <g
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M2 3h20v14H2z" />
+    <path d="M12 17v4M8 21h8" />
+    <polygon points="10,7 10,13 15,10" fill="currentColor" stroke="none" />
+  </g>,
+  tablerIconProps,
+);
+
+export const exitPresentationIcon = createIcon(
+  <g
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M18 6L6 18M6 6l12 12" />
+  </g>,
+  tablerIconProps,
+);
+
 export const laserPointerToolIcon = createIcon(
   <g
     fill="none"

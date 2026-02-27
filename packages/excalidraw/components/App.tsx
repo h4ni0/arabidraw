@@ -315,6 +315,7 @@ import {
   actionToggleGridMode,
   actionToggleStats,
   actionToggleZenMode,
+  actionTogglePresentationMode,
   actionUnbindText,
   actionBindText,
   actionUngroup,
@@ -4771,6 +4772,12 @@ class App extends React.Component<AppProps, AppState> {
       }
 
       if (!isInputLike(event.target)) {
+        // Exit presentation mode on Escape
+        if (event.key === KEYS.ESCAPE && this.state.presentationModeEnabled) {
+          this.actionManager.executeAction(actionTogglePresentationMode);
+          return;
+        }
+
         if (
           (event.key === KEYS.ESCAPE || event.key === KEYS.ENTER) &&
           this.state.croppingElementId

@@ -30,6 +30,7 @@ import type {
 } from "@excalidraw/element/types";
 
 import { actionToggleZenMode } from "../actions";
+import { actionTogglePresentationMode } from "../actions/actionTogglePresentationMode";
 
 import { alignActionsPredicate } from "../actions/actionAlign";
 import { trackEvent } from "../analytics";
@@ -82,6 +83,7 @@ import {
   DotsHorizontalIcon,
   SelectionIcon,
   pencilIcon,
+  exitPresentationIcon,
 } from "./icons";
 
 import { Island } from "./Island";
@@ -1340,5 +1342,20 @@ export const ExitViewModeButton = ({
     onClick={() => actionManager.executeAction(actionToggleViewMode)}
   >
     {pencilIcon}
+  </button>
+);
+
+export const ExitPresentationModeButton = ({
+  actionManager,
+}: {
+  actionManager: ActionManager;
+}) => (
+  <button
+    type="button"
+    className="exit-presentation-mode"
+    onClick={() => actionManager.executeAction(actionTogglePresentationMode)}
+    title={t("buttons.exitPresentationMode")}
+  >
+    {exitPresentationIcon}
   </button>
 );
