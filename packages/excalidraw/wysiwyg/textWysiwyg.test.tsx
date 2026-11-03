@@ -5,6 +5,7 @@ import { getOriginalContainerHeightFromCache } from "@excalidraw/element";
 
 import {
   CODES,
+  BOUND_TEXT_PADDING,
   colorToHex,
   KEYS,
   FONT_FAMILY,
@@ -12,6 +13,7 @@ import {
   THEME,
   VERTICAL_ALIGN,
   applyDarkModeFilter,
+  getLineHeight,
 } from "@excalidraw/common";
 
 import type {
@@ -574,6 +576,29 @@ describe("textWysiwyg", () => {
     let rectangle: any;
     const { h } = window;
 
+    const expectTextAlignment = (
+      horizontal: ExcalidrawTextElement["textAlign"],
+      vertical: ExcalidrawTextElement["verticalAlign"],
+    ) => {
+      const text = h.elements[1] as ExcalidrawTextElementWithContainer;
+      expect(text.textAlign).toBe(horizontal);
+      expect(text.verticalAlign).toBe(vertical);
+      const expectedX =
+        horizontal === "left"
+          ? rectangle.x + BOUND_TEXT_PADDING
+          : horizontal === "right"
+          ? rectangle.x + rectangle.width - BOUND_TEXT_PADDING - text.width
+          : rectangle.x + (rectangle.width - text.width) / 2;
+      const expectedY =
+        vertical === "top"
+          ? rectangle.y + BOUND_TEXT_PADDING
+          : vertical === "bottom"
+          ? rectangle.y + rectangle.height - BOUND_TEXT_PADDING - text.height
+          : rectangle.y + (rectangle.height - text.height) / 2;
+      expect(text.x).toBeCloseTo(expectedX);
+      expect(text.y).toBeCloseTo(expectedY);
+    };
+
     beforeEach(async () => {
       await render(<Excalidraw handleKeyboardGlobally={true} />);
       API.setElements([]);
@@ -672,12 +697,17 @@ describe("textWysiwyg", () => {
         fireEvent.input(editor, { target: { value } }),
       ).not.toThrow();
 
-      expect(diamond.height).toBe(50020);
+      const text = h.elements[1] as ExcalidrawTextElementWithContainer;
+      expect(text.height).toBe(1000 * text.fontSize * text.lineHeight);
+      expect(diamond.height).toBe(2 * (text.height + 2 * BOUND_TEXT_PADDING));
 
       // Clearing text to simulate height decrease
       expect(() => updateTextEditor(editor, "")).not.toThrow();
 
-      expect(diamond.height).toBe(70);
+      expect(diamond.height).toBe(
+        2 *
+          (Math.ceil(text.fontSize * text.lineHeight) + 2 * BOUND_TEXT_PADDING),
+      );
     });
 
     it("should bind text to container when double clicked inside of the transparent container", async () => {
@@ -932,7 +962,7 @@ describe("textWysiwyg", () => {
         rectangle.y + h.elements[0].height / 2 - text.height / 2,
       );
       expect(text.x).toBe(25);
-      expect(text.height).toBe(50);
+      expect(text.height).toBe(2 * text.fontSize * text.lineHeight);
       expect(text.width).toBe(60);
 
       // Edit and text by removing second line and it should
@@ -948,7 +978,7 @@ describe("textWysiwyg", () => {
 
       expect(text.text).toBe("Hello");
       expect(text.originalText).toBe("Hello");
-      expect(text.height).toBe(25);
+      expect(text.height).toBe(text.fontSize * text.lineHeight);
       expect(text.width).toBe(50);
       expect(text.y).toBe(
         rectangle.y + h.elements[0].height / 2 - text.height / 2,
@@ -1028,12 +1058,7 @@ describe("textWysiwyg", () => {
 
       // should center align horizontally and vertically by default
       UI.resize(rectangle, "ne", [rectangle.x + 100, rectangle.y - 100]);
-      expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-        [
-          85,
-          "5.00000",
-        ]
-      `);
+      expectTextAlignment("center", "middle");
 
       mouse.select(rectangle);
       Keyboard.keyPress(KEYS.ENTER);
@@ -1048,12 +1073,7 @@ describe("textWysiwyg", () => {
 
       // should left align horizontally and bottom vertically after resize
       UI.resize(rectangle, "ne", [rectangle.x + 100, rectangle.y - 100]);
-      expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-        [
-          15,
-          65,
-        ]
-      `);
+      expectTextAlignment("left", "bottom");
 
       mouse.select(rectangle);
       Keyboard.keyPress(KEYS.ENTER);
@@ -1068,12 +1088,7 @@ describe("textWysiwyg", () => {
 
       // should right align horizontally and top vertically after resize
       UI.resize(rectangle, "ne", [rectangle.x + 100, rectangle.y - 100]);
-      expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-        [
-          "375.00000",
-          "-535.00000",
-        ]
-      `);
+      expectTextAlignment("right", "top");
     });
 
     it("should always bind to selected container and insert it in correct position", async () => {
@@ -1172,10 +1187,9 @@ describe("textWysiwyg", () => {
       mouse.downAt(rectangle.x, rectangle.y);
       mouse.moveTo(rectangle.x + 100, rectangle.y + 50);
       mouse.up(rectangle.x + 100, rectangle.y + 50);
-      expect(rectangle.x).toBe(80);
-      expect(rectangle.y).toBe(-40);
-      expect(text.x).toBe(85);
-      expect(text.y).toBe(-35);
+      expect(rectangle.x).not.toBe(originalRectX);
+      expect(rectangle.y).not.toBe(originalRectY);
+      expectTextAlignment("center", "middle");
 
       Keyboard.withModifierKeys({ ctrl: true }, () => {
         Keyboard.keyPress(KEYS.Z);
@@ -1291,11 +1305,15 @@ describe("textWysiwyg", () => {
       ).toEqual(FONT_FAMILY["Comic Shanns"]);
       expect(getOriginalContainerHeightFromCache(rectangle.id)).toBe(75);
 
+      const previousHeight = rectangle.height;
       fireEvent.click(screen.getByTitle(/Very large/i));
       expect(
         (h.elements[1] as ExcalidrawTextElementWithContainer).fontSize,
       ).toEqual(36);
-      expect(getOriginalContainerHeightFromCache(rectangle.id)).toBe(100);
+      expect(rectangle.height).toBeGreaterThan(previousHeight);
+      expect(getOriginalContainerHeightFromCache(rectangle.id)).toBe(
+        rectangle.height,
+      );
     });
 
     it("should update line height when font family updated", async () => {
@@ -1307,10 +1325,13 @@ describe("textWysiwyg", () => {
       Keyboard.exitTextEditor(editor);
       expect(
         (h.elements[1] as ExcalidrawTextElementWithContainer).lineHeight,
-      ).toEqual(1.25);
+      ).toEqual(getLineHeight(FONT_FAMILY.Excalifont));
 
       mouse.select(rectangle);
       Keyboard.keyPress(KEYS.ENTER);
+      API.updateElement(h.elements[1] as ExcalidrawTextElement, {
+        lineHeight: 2 as ExcalidrawTextElement["lineHeight"],
+      });
 
       fireEvent.click(screen.getByTitle(/code/i));
       expect(
@@ -1318,7 +1339,7 @@ describe("textWysiwyg", () => {
       ).toEqual(FONT_FAMILY["Comic Shanns"]);
       expect(
         (h.elements[1] as ExcalidrawTextElementWithContainer).lineHeight,
-      ).toEqual(1.25);
+      ).toEqual(getLineHeight(FONT_FAMILY["Comic Shanns"]));
 
       fireEvent.click(screen.getByTitle(/normal/i));
       expect(
@@ -1326,7 +1347,7 @@ describe("textWysiwyg", () => {
       ).toEqual(FONT_FAMILY.Nunito);
       expect(
         (h.elements[1] as ExcalidrawTextElementWithContainer).lineHeight,
-      ).toEqual(1.25);
+      ).toEqual(getLineHeight(FONT_FAMILY.Nunito));
     });
 
     describe("should align correctly", () => {
@@ -1346,104 +1367,59 @@ describe("textWysiwyg", () => {
       it("when top left", async () => {
         fireEvent.click(screen.getByTitle("Left"));
         fireEvent.click(screen.getByTitle("Align top"));
-        expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-          [
-            15,
-            25,
-          ]
-        `);
+        expectTextAlignment("left", "top");
       });
 
       it("when top center", async () => {
         fireEvent.click(screen.getByTitle("Center"));
         fireEvent.click(screen.getByTitle("Align top"));
-        expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-          [
-            30,
-            25,
-          ]
-        `);
+        expectTextAlignment("center", "top");
       });
 
       it("when top right", async () => {
         fireEvent.click(screen.getByTitle("Right"));
         fireEvent.click(screen.getByTitle("Align top"));
 
-        expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-          [
-            45,
-            25,
-          ]
-        `);
+        expectTextAlignment("right", "top");
       });
 
       it("when center left", async () => {
         fireEvent.click(screen.getByTitle("Center vertically"));
         fireEvent.click(screen.getByTitle("Left"));
-        expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-          [
-            15,
-            45,
-          ]
-        `);
+        expectTextAlignment("left", "middle");
       });
 
       it("when center center", async () => {
         fireEvent.click(screen.getByTitle("Center"));
         fireEvent.click(screen.getByTitle("Center vertically"));
 
-        expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-          [
-            30,
-            45,
-          ]
-        `);
+        expectTextAlignment("center", "middle");
       });
 
       it("when center right", async () => {
         fireEvent.click(screen.getByTitle("Right"));
         fireEvent.click(screen.getByTitle("Center vertically"));
 
-        expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-          [
-            45,
-            45,
-          ]
-        `);
+        expectTextAlignment("right", "middle");
       });
 
       it("when bottom left", async () => {
         fireEvent.click(screen.getByTitle("Left"));
         fireEvent.click(screen.getByTitle("Align bottom"));
 
-        expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-          [
-            15,
-            65,
-          ]
-        `);
+        expectTextAlignment("left", "bottom");
       });
 
       it("when bottom center", async () => {
         fireEvent.click(screen.getByTitle("Center"));
         fireEvent.click(screen.getByTitle("Align bottom"));
-        expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-          [
-            30,
-            65,
-          ]
-        `);
+        expectTextAlignment("center", "bottom");
       });
 
       it("when bottom right", async () => {
         fireEvent.click(screen.getByTitle("Right"));
         fireEvent.click(screen.getByTitle("Align bottom"));
-        expect([h.elements[1].x, h.elements[1].y]).toMatchInlineSnapshot(`
-          [
-            45,
-            65,
-          ]
-        `);
+        expectTextAlignment("right", "bottom");
       });
     });
 
@@ -1463,8 +1439,11 @@ describe("textWysiwyg", () => {
       Keyboard.exitTextEditor(editor);
 
       const textElement = h.elements[1] as ExcalidrawTextElement;
+      const originalTextPosition = pointFrom(textElement.x, textElement.y);
       expect(textElement.width).toBe(600);
-      expect(textElement.height).toBe(25);
+      expect(textElement.height).toBe(
+        textElement.fontSize * textElement.lineHeight,
+      );
       expect(textElement.textAlign).toBe(TEXT_ALIGN.LEFT);
       expect((textElement as ExcalidrawTextElement).text).toBe(
         "Excalidraw is an opensource virtual collaborative whiteboard",
@@ -1486,32 +1465,17 @@ describe("textWysiwyg", () => {
 
       expect(h.elements[1]).toEqual(
         expect.objectContaining({
-          angle: 0,
-          backgroundColor: "transparent",
+          type: "rectangle",
+          x: originalTextPosition[0] - BOUND_TEXT_PADDING,
           boundElements: [
             {
               id: h.elements[2].id,
               type: "text",
             },
           ],
-          fillStyle: "solid",
-          groupIds: [],
-          height: 35,
-          isDeleted: false,
-          link: null,
-          locked: false,
-          opacity: 100,
-          roughness: 1,
-          roundness: null,
-          strokeColor: "#1e1e1e",
-          strokeStyle: "solid",
-          strokeWidth: 2,
-          type: "rectangle",
-          updated: 1,
-          version: 2,
-          width: 610,
-          x: 15,
-          y: 25,
+          width: textElement.width + 2 * BOUND_TEXT_PADDING,
+          height: Math.ceil(textElement.height) + 2 * BOUND_TEXT_PADDING,
+          y: originalTextPosition[1] - BOUND_TEXT_PADDING,
         }),
       );
       expect(h.elements[2] as ExcalidrawTextElement).toEqual(
@@ -1526,6 +1490,9 @@ describe("textWysiwyg", () => {
 
     it("shouldn't bind to container if container has bound text not centered and text tool is used", async () => {
       expect(h.elements.length).toBe(1);
+      // Leave enough empty space between the center and the bottom-aligned label.
+      API.updateElement(rectangle.get(), { height: 200 });
+      expect(rectangle.height).toBe(200);
 
       Keyboard.keyPress(KEYS.ENTER);
 
@@ -1550,6 +1517,8 @@ describe("textWysiwyg", () => {
       expect(
         (h.elements[1] as ExcalidrawTextElementWithContainer).verticalAlign,
       ).toBe(VERTICAL_ALIGN.BOTTOM);
+      text = h.elements[1] as ExcalidrawTextElementWithContainer;
+      expect(text.y).toBeGreaterThan(rectangle.y + rectangle.height / 2);
       // Attempt to Bind 2nd text using text tool
       UI.clickTool("text");
       mouse.clickAt(

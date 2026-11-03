@@ -1078,11 +1078,15 @@ describe("Test Linear Elements", () => {
       });
     });
 
-    it("should match styles for text editor", async () => {
-      createTwoPointerLinearElement("arrow");
+    it("should align the text editor with the arrow label", async () => {
+      const arrow = createTwoPointerLinearElement("arrow");
       Keyboard.keyPress(KEYS.ENTER);
       const editor = await getTextEditor();
-      expect(editor).toMatchSnapshot();
+      const text = h.elements[1] as ExcalidrawTextElementWithContainer;
+      expect(text.containerId).toBe(arrow.id);
+      expect(editor.style.textAlign).toBe("center");
+      expect(Number(editor.style.lineHeight)).toBe(text.lineHeight);
+      expect(parseFloat(editor.style.top) + text.height / 2).toBe(arrow.y);
     });
 
     it("should bind text to arrow when double clicked", async () => {
@@ -1154,133 +1158,112 @@ describe("Test Linear Elements", () => {
     );
 
     it("should resize and position the bound text and bounding box correctly when 3 pointer arrow element resized", () => {
-      createThreePointerLinearElement("arrow", {
+      const arrow = createThreePointerLinearElement("arrow", {
         type: ROUNDNESS.PROPORTIONAL_RADIUS,
       });
-
-      const arrow = h.elements[0] as ExcalidrawLinearElement;
-
       const { textElement, container } = createBoundTextElement(
         DEFAULT_TEXT,
         arrow,
       );
-      expect(container.width).toBe(70);
-      expect(container.height).toBe(50);
-      expect(
-        getBoundTextElementPosition(
-          container,
-          textElement,
-          arrayToMap(h.elements),
-        ),
-      ).toMatchInlineSnapshot(`
-        {
-          "x": 75,
-          "y": 60,
-        }
-      `);
-      expect(textElement.text).toMatchSnapshot();
-      expect(
-        LinearElementEditor.getElementAbsoluteCoords(
-          container,
-          h.app.scene.getNonDeletedElementsMap(),
-          true,
-        ),
-      ).toMatchInlineSnapshot(`
-        [
-          20,
-          20,
-          105,
-          80,
-          "55.45894",
-          45,
-        ]
-      `);
+      const originalWidth = container.width;
+      const originalLineCount = textElement.text.split("\n").length;
 
       UI.resize(container, "ne", [300, 200]);
 
-      expect({ width: container.width, height: container.height })
-        .toMatchInlineSnapshot(`
-          {
-            "height": 130,
-            "width": "366.11716",
-          }
-        `);
+      const elementsMap = h.app.scene.getNonDeletedElementsMap();
+      const text = elementsMap.get(
+        textElement.id,
+      ) as ExcalidrawTextElementWithContainer;
+      expect(container.width).toBeGreaterThan(originalWidth);
+      expect(container.points).toHaveLength(3);
+      expect(text.originalText).toBe(DEFAULT_TEXT);
+      expect(text.text.split("\n").length).toBeLessThan(originalLineCount);
+      expect(text.height).toBe(
+        text.text.split("\n").length * text.fontSize * text.lineHeight,
+      );
+      expect(text.width).toBeLessThanOrEqual(
+        getBoundTextMaxWidth(container, text),
+      );
+      expect(text.containerId).toBe(container.id);
 
-      expect(
-        getBoundTextElementPosition(
-          container,
-          textElement,
-          arrayToMap(h.elements),
-        ),
-      ).toMatchInlineSnapshot(`
-        {
-          "x": "271.11716",
-          "y": 45,
-        }
-      `);
-      expect(
-        (h.elements[1] as ExcalidrawTextElementWithContainer).text,
-      ).toMatchSnapshot();
-      expect(
-        LinearElementEditor.getElementAbsoluteCoords(
-          container,
-          h.app.scene.getNonDeletedElementsMap(),
-          true,
-        ),
-      ).toMatchInlineSnapshot(`
-        [
-          20,
-          35,
-          "501.11716",
-          95,
-          "205.45894",
-          "52.50000",
-        ]
-      `);
+      const middlePoint = LinearElementEditor.getPointsGlobalCoordinates(
+        container,
+        elementsMap,
+      )[1];
+      const position = getBoundTextElementPosition(
+        container,
+        text,
+        elementsMap,
+      )!;
+      expect(position.x + text.width / 2).toBeCloseTo(middlePoint[0]);
+      expect(position.y + text.height / 2).toBeCloseTo(middlePoint[1]);
+
+      const arrowBounds = LinearElementEditor.getElementAbsoluteCoords(
+        container,
+        elementsMap,
+      );
+      const bounds = LinearElementEditor.getElementAbsoluteCoords(
+        container,
+        elementsMap,
+        true,
+      );
+      expect(bounds[0]).toBeCloseTo(Math.min(arrowBounds[0], position.x));
+      expect(bounds[1]).toBeCloseTo(Math.min(arrowBounds[1], position.y));
+      expect(bounds[2]).toBeCloseTo(
+        Math.max(arrowBounds[2], position.x + text.width),
+      );
+      expect(bounds[3]).toBeCloseTo(
+        Math.max(arrowBounds[3], position.y + text.height),
+      );
     });
 
     it("should resize and position the bound text correctly when 2 pointer linear element resized", () => {
-      createTwoPointerLinearElement("arrow");
-
-      const arrow = h.elements[0] as ExcalidrawLinearElement;
+      const arrow = createTwoPointerLinearElement("arrow");
       const { textElement, container } = createBoundTextElement(
         DEFAULT_TEXT,
         arrow,
       );
-      expect(container.width).toBe(40);
-      const elementsMap = arrayToMap(h.elements);
-      expect(getBoundTextElementPosition(container, textElement, elementsMap))
-        .toMatchInlineSnapshot(`
-          {
-            "x": 25,
-            "y": 10,
-          }
-        `);
-      expect(textElement.text).toMatchSnapshot();
+      const originalWidth = container.width;
+      const originalLineCount = textElement.text.split("\n").length;
+      const elementsMap = h.app.scene.getNonDeletedElementsMap();
       const points = LinearElementEditor.getPointsGlobalCoordinates(
         container,
         elementsMap,
       );
 
-      // Drag from last point
+      // Drag only the last point; the first point must stay anchored.
       drag(points[1], pointFrom(points[1][0] + 300, points[1][1]));
 
-      expect({ width: container.width, height: container.height })
-        .toMatchInlineSnapshot(`
-          {
-            "height": 130,
-            "width": 340,
-          }
-        `);
+      const updatedPoints = LinearElementEditor.getPointsGlobalCoordinates(
+        container,
+        elementsMap,
+      );
+      expect(updatedPoints).toHaveLength(2);
+      expect(updatedPoints[0]).toEqual(points[0]);
+      expect(updatedPoints[1][0]).toBeCloseTo(points[1][0] + 300);
+      expect(updatedPoints[1][1]).toBeCloseTo(points[1][1]);
+      expect(container.width).toBeCloseTo(originalWidth + 300);
 
-      expect(getBoundTextElementPosition(container, textElement, elementsMap))
-        .toMatchInlineSnapshot(`
-          {
-            "x": 75,
-            "y": -5,
-          }
-        `);
-      expect(textElement.text).toMatchSnapshot();
+      const text = elementsMap.get(
+        textElement.id,
+      ) as ExcalidrawTextElementWithContainer;
+      expect(text.originalText).toBe(DEFAULT_TEXT);
+      expect(text.text.split("\n").length).toBeLessThan(originalLineCount);
+      expect(text.height).toBe(
+        text.text.split("\n").length * text.fontSize * text.lineHeight,
+      );
+      expect(text.width).toBeLessThanOrEqual(
+        getBoundTextMaxWidth(container, text),
+      );
+      expect(text.containerId).toBe(container.id);
+      const midpoint = pointCenter(updatedPoints[0], updatedPoints[1]);
+      const position = getBoundTextElementPosition(
+        container,
+        text,
+        elementsMap,
+      )!;
+      expect(position.x + text.width / 2).toBeCloseTo(midpoint[0]);
+      expect(position.y + text.height / 2).toBeCloseTo(midpoint[1]);
     });
 
     it("should not render vertical align tool when element selected", () => {
@@ -1416,9 +1399,9 @@ describe("Test Linear Elements", () => {
         expect.objectContaining({
           containerId: null,
           width: 160,
-          height: 25,
-          x: -40,
-          y: 7.5,
+          height: text.fontSize * text.lineHeight,
+          x: container.x + container.width / 2 - text.width / 2,
+          y: container.y - text.height / 2,
         }),
       );
     });

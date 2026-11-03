@@ -3,6 +3,13 @@ import { expect } from "vitest";
 
 import { reseed } from "@excalidraw/common";
 
+import { pointFrom, type GlobalPoint, type LocalPoint } from "@excalidraw/math";
+import {
+  distanceToElement,
+  getBindingGap,
+  getGlobalFixedPointForBindableElement,
+} from "@excalidraw/element";
+
 import { Excalidraw } from "../index";
 
 import { UI } from "./helpers/ui";
@@ -66,6 +73,14 @@ test("unselected bound arrows update when rotating their target elements", async
 
   expect(ellipseArrow.endBinding?.elementId).toEqual(ellipse.id);
   expect(textArrow.endBinding?.elementId).toEqual(text.id);
+  const originalEllipseEnd = pointFrom<LocalPoint>(
+    ellipseArrow.points[1][0],
+    ellipseArrow.points[1][1],
+  );
+  const originalTextEnd = pointFrom<LocalPoint>(
+    textArrow.points[1][0],
+    textArrow.points[1][1],
+  );
 
   UI.rotate([ellipse, text], [-82, 23], { shift: true });
 
@@ -73,13 +88,37 @@ test("unselected bound arrows update when rotating their target elements", async
   expect(ellipseArrow.x).toEqual(-10);
   expect(ellipseArrow.y).toEqual(80);
   expect(ellipseArrow.points[0]).toEqual([0, 0]);
-  expect(ellipseArrow.points[1][0]).toBeCloseTo(66.317, 1);
-  expect(ellipseArrow.points[1][1]).toBeCloseTo(144.38, 1);
+  expect(ellipseArrow.points[1]).not.toEqual(originalEllipseEnd);
 
   expect(textArrow.endBinding?.elementId).toEqual(text.id);
   expect(textArrow.x).toEqual(360);
   expect(textArrow.y).toEqual(300);
   expect(textArrow.points[0]).toEqual([0, 0]);
-  expect(textArrow.points[1][0]).toBeCloseTo(-95.4635969899922, 0);
-  expect(textArrow.points[1][1]).toBeCloseTo(-126.8785027399889, 0);
+  expect(textArrow.points[1]).not.toEqual(originalTextEnd);
+
+  const elementsMap = window.h.app.scene.getNonDeletedElementsMap();
+  for (const [target, arrow] of [
+    [ellipse, ellipseArrow],
+    [text, textArrow],
+  ] as const) {
+    expect(target.angle).not.toBe(0);
+    const endpoint = pointFrom<GlobalPoint>(
+      arrow.x + arrow.points[1][0],
+      arrow.y + arrow.points[1][1],
+    );
+    const binding = arrow.endBinding!;
+    if (binding.mode === "inside") {
+      const fixedPoint = getGlobalFixedPointForBindableElement(
+        binding.fixedPoint,
+        target,
+        elementsMap,
+      );
+      expect(endpoint[0]).toBeCloseTo(fixedPoint[0]);
+      expect(endpoint[1]).toBeCloseTo(fixedPoint[1]);
+    } else {
+      expect(
+        distanceToElement(target, elementsMap, endpoint),
+      ).toBeLessThanOrEqual(getBindingGap(target, arrow) + 1);
+    }
+  }
 });

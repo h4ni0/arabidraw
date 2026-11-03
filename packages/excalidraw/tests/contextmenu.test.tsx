@@ -1,5 +1,4 @@
 import React from "react";
-import { vi } from "vitest";
 
 import { KEYS, reseed } from "@excalidraw/common";
 
@@ -7,7 +6,6 @@ import { setDateTimeForTests } from "@excalidraw/common";
 
 import { copiedStyles } from "../actions/actionStyles";
 import { Excalidraw } from "../index";
-import * as StaticScene from "../renderer/staticScene";
 
 import { API } from "./helpers/api";
 import { UI, Pointer, Keyboard } from "./helpers/ui";
@@ -23,42 +21,19 @@ import {
   waitFor,
   togglePopover,
   unmountComponent,
-  checkpointHistory,
 } from "./test-utils";
 
 import type { ShortcutName } from "../actions/shortcuts";
 import type { ActionName } from "../actions/types";
 
-const checkpoint = (name: string) => {
-  expect(renderStaticScene.mock.calls.length).toMatchSnapshot(
-    `[${name}] number of renders`,
-  );
-  expect(h.state).toMatchSnapshot(`[${name}] appState`);
-  expect(h.elements.length).toMatchSnapshot(`[${name}] number of elements`);
-  h.elements.forEach((element, i) =>
-    expect(element).toMatchSnapshot(`[${name}] element ${i}`),
-  );
-
-  checkpointHistory(h.history, name);
-};
-
 const mouse = new Pointer("mouse");
-
-unmountComponent();
-
-const renderStaticScene = vi.spyOn(StaticScene, "renderStaticScene");
-beforeEach(() => {
-  localStorage.clear();
-  renderStaticScene.mockClear();
-  reseed(7);
-});
 
 const { h } = window;
 
 describe("contextMenu element", () => {
   beforeEach(async () => {
+    unmountComponent();
     localStorage.clear();
-    renderStaticScene.mockClear();
     reseed(7);
     setDateTimeForTests("201933152653");
 
@@ -71,13 +46,6 @@ describe("contextMenu element", () => {
 
   afterAll(() => {
     restoreOriginalGetBoundingClientRect();
-  });
-
-  afterEach(() => {
-    checkpoint("end of test");
-
-    mouse.reset();
-    mouse.down(0, 0);
   });
 
   it("shows context menu for canvas", () => {

@@ -23,6 +23,7 @@ import type { DrawingMetadata } from "./data/serverDrawings";
 
 export interface ServerDrawingsController {
   readonly isOpen: boolean;
+  readonly isCreatingNew: boolean;
   readonly activeDrawing: DrawingMetadata | null;
   readonly isDirty: boolean;
   readonly drawings: readonly DrawingMetadata[];
@@ -37,6 +38,8 @@ export interface ServerDrawingsController {
   setName(name: string): void;
   refresh(): Promise<void>;
   save(saveAs: boolean): Promise<void>;
+  createNew(): Promise<void>;
+  discardAndCreateNew(): void;
   load(drawing: DrawingMetadata): Promise<void>;
   remove(drawing: DrawingMetadata): Promise<void>;
 }
@@ -156,6 +159,7 @@ export const useServerDrawings = (
   isCollaborating: boolean,
 ): ServerDrawingsController => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [activeDrawing, setActiveDrawing] = useState<DrawingMetadata | null>(
     null,
   );
@@ -299,13 +303,30 @@ export const useServerDrawings = (
   }, []);
 
   const open = () => {
+    setIsCreatingNew(false);
     setIsOpen(true);
     setName(activeDrawing?.name ?? api?.getName() ?? "");
     setError("");
     void refresh();
   };
 
-  const save = async (saveAs: boolean) => {
+  const resetDrawing = () => {
+    if (!api || collaboration.current) {
+      return;
+    }
+    savedContent.current = null;
+    savedRevision.current = null;
+    pendingCreate.current = null;
+    api.resetScene({ resetLoadingState: true });
+    setActiveDrawing(null);
+    setName("");
+    setIsDirty(true);
+    setIsCreatingNew(false);
+    setIsOpen(false);
+    setError("");
+  };
+
+  const save = async (saveAs: boolean, startNew = isCreatingNew) => {
     if (!api || busy.current || collaboration.current) {
       return;
     }
@@ -375,13 +396,18 @@ export const useServerDrawings = (
         setError(
           `Saved “${result.name}”, but the active canvas changed. Open it from the gallery to continue working on that saved copy.`,
         );
+        if (startNew) {
+          setIsCreatingNew(false);
+          setIsOpen(true);
+        }
         return;
       }
       savedContent.current = snapshot;
       savedRevision.current = `${result.id}:${result.revision}`;
       setActiveDrawing(result);
       setName(result.name);
-      setIsDirty(currentContent() !== snapshot);
+      const changedWhileSaving = currentContent() !== snapshot;
+      setIsDirty(changedWhileSaving);
       api.updateScene({
         appState: {
           name: result.name,
@@ -390,6 +416,16 @@ export const useServerDrawings = (
         },
         captureUpdate: CaptureUpdateAction.NEVER,
       });
+      if (startNew) {
+        if (changedWhileSaving) {
+          setError(
+            "The canvas changed while saving. Save again before creating a new drawing, or cancel to keep editing.",
+          );
+          setIsOpen(true);
+        } else {
+          resetDrawing();
+        }
+      }
     } catch (error) {
       console.error("Saving server drawing failed", error);
       setError(
@@ -401,6 +437,26 @@ export const useServerDrawings = (
     } finally {
       busy.current = false;
       setOperation(null);
+    }
+  };
+
+  const createNew = async () => {
+    if (!api || busy.current || collaboration.current) {
+      return;
+    }
+    setIsCreatingNew(true);
+    setName(activeDrawing?.name ?? api.getName());
+    setError("");
+    if (activeDrawing) {
+      await save(false, true);
+    } else {
+      setIsOpen(true);
+    }
+  };
+
+  const discardAndCreateNew = () => {
+    if (!busy.current && !api?.getAppState().serverDrawing) {
+      resetDrawing();
     }
   };
 
@@ -569,10 +625,12 @@ export const useServerDrawings = (
 
   return {
     isOpen,
+    isCreatingNew,
     open,
     close: () => {
       if (!busy.current) {
         setIsOpen(false);
+        setIsCreatingNew(false);
       }
     },
     activeDrawing,
@@ -586,6 +644,8 @@ export const useServerDrawings = (
     setName,
     refresh,
     save,
+    createNew,
+    discardAndCreateNew,
     load,
     remove,
     disabled: !api || isCollaborating,

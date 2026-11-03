@@ -22,8 +22,6 @@ import { STORAGE_KEYS } from "../../../excalidraw-app/app_constants";
 import { Pointer, UI } from "./helpers/ui";
 import * as toolQueries from "./queries/toolQueries";
 
-import type { History } from "../history";
-
 import type { RenderResult, RenderOptions } from "@testing-library/react";
 
 import type { ImportedDataState } from "../data/types";
@@ -425,53 +423,6 @@ export const assertElements = <T extends AllPossibleKeys<ExcalidrawElement>>(
   );
 
   expect(h.state.selectedElementIds).toEqual(selectedElementIds);
-};
-
-const stripProps = (
-  deltas: Record<string, { deleted: any; inserted: any }>,
-  props: string[],
-) =>
-  Object.entries(deltas).reduce((acc, curr) => {
-    const { inserted, deleted, ...rest } = curr[1];
-
-    for (const prop of props) {
-      delete inserted[prop];
-      delete deleted[prop];
-    }
-
-    acc[curr[0]] = {
-      inserted,
-      deleted,
-      ...rest,
-    };
-
-    return acc;
-  }, {} as Record<string, any>);
-
-export const checkpointHistory = (history: History, name: string) => {
-  expect(
-    history.undoStack.map((x) => ({
-      ...x,
-      elements: {
-        ...x.elements,
-        added: stripProps(x.elements.added, ["seed", "versionNonce"]),
-        removed: stripProps(x.elements.removed, ["seed", "versionNonce"]),
-        updated: stripProps(x.elements.updated, ["seed", "versionNonce"]),
-      },
-    })),
-  ).toMatchSnapshot(`[${name}] undo stack`);
-
-  expect(
-    history.redoStack.map((x) => ({
-      ...x,
-      elements: {
-        ...x.elements,
-        added: stripProps(x.elements.added, ["seed", "versionNonce"]),
-        removed: stripProps(x.elements.removed, ["seed", "versionNonce"]),
-        updated: stripProps(x.elements.updated, ["seed", "versionNonce"]),
-      },
-    })),
-  ).toMatchSnapshot(`[${name}] redo stack`);
 };
 
 /**

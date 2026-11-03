@@ -1,11 +1,16 @@
 import React from "react";
 import { vi } from "vitest";
 
-import { getLineHeightInPx } from "@excalidraw/element";
+import { getElementBounds, getLineHeightInPx } from "@excalidraw/element";
 
-import { KEYS, arrayToMap, getLineHeight } from "@excalidraw/common";
+import {
+  BOUND_TEXT_PADDING,
+  KEYS,
+  arrayToMap,
+  getLineHeight,
+} from "@excalidraw/common";
 
-import { getElementBounds } from "@excalidraw/element";
+import type { ExcalidrawTextElementWithContainer } from "@excalidraw/element/types";
 
 import { createPasteEvent, serializeAsClipboardJSON } from "../clipboard";
 
@@ -249,9 +254,24 @@ describe("Paste bound text container", () => {
     await waitFor(async () => {
       await sleep(1);
       expect(h.elements.length).toEqual(2);
-      const container = h.elements[0];
-      expect(container.height).toBe(368);
-      expect(container.width).toBe(166);
+      const pastedContainer = h.elements[0];
+      const text = h.elements[1] as ExcalidrawTextElementWithContainer;
+      expect(text.originalText).toBe(textElement.originalText);
+      expect(text.containerId).toBe(pastedContainer.id);
+      expect(pastedContainer.boundElements).toContainEqual({
+        id: text.id,
+        type: "text",
+      });
+      expect(text.height).toBe(
+        text.text.split("\n").length * text.fontSize * text.lineHeight,
+      );
+      expect(pastedContainer.height).toBe(
+        Math.round(
+          (Math.ceil(text.height) + 2 * BOUND_TEXT_PADDING) * Math.sqrt(2),
+        ),
+      );
+      expect(pastedContainer.height).toBeGreaterThan(container.height);
+      expect(pastedContainer.width).toBe(container.width);
     });
   });
 
@@ -271,9 +291,22 @@ describe("Paste bound text container", () => {
     await waitFor(async () => {
       await sleep(1);
       expect(h.elements.length).toEqual(2);
-      const container = h.elements[0];
-      expect(container.height).toBe(770);
-      expect(container.width).toBe(166);
+      const pastedContainer = h.elements[0];
+      const text = h.elements[1] as ExcalidrawTextElementWithContainer;
+      expect(text.originalText).toBe(textElement.originalText);
+      expect(text.containerId).toBe(pastedContainer.id);
+      expect(pastedContainer.boundElements).toContainEqual({
+        id: text.id,
+        type: "text",
+      });
+      expect(text.height).toBe(
+        text.text.split("\n").length * text.fontSize * text.lineHeight,
+      );
+      expect(pastedContainer.height).toBe(
+        2 * (Math.ceil(text.height) + 2 * BOUND_TEXT_PADDING),
+      );
+      expect(pastedContainer.height).toBeGreaterThan(container.height);
+      expect(pastedContainer.width).toBe(container.width);
     });
   });
 });

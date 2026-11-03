@@ -3,7 +3,6 @@ import {
   LiveCollaborationTrigger,
   CaptureUpdateAction,
   reconcileElements,
-  useEditorInterface,
 } from "@excalidraw/excalidraw";
 import { trackEvent } from "@excalidraw/excalidraw/analytics";
 import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
@@ -127,6 +126,7 @@ import DebugCanvas, {
 } from "./components/DebugCanvas";
 
 import "./index.scss";
+import styles from "./App.module.scss";
 
 import { AppSidebar } from "./components/AppSidebar";
 
@@ -360,8 +360,6 @@ const ExcalidrawWrapper = () => {
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
 
   const [langCode, setLangCode] = useAppLangCode();
-
-  const editorInterface = useEditorInterface();
 
   // initial state
   // ---------------------------------------------------------------------------
@@ -806,8 +804,18 @@ const ExcalidrawWrapper = () => {
         renderTopRightUI={(isMobile) => {
           const showCollaboration = !isMobile && collabAPI && !isCollabDisabled;
           return (
-            <div className="excalidraw-ui-top-right server-drawing-controls">
+            <div className={clsx("excalidraw-ui-top-right", styles.toolbar)}>
               <Button
+                onSelect={() => void serverDrawings.createNew()}
+                disabled={
+                  serverDrawings.disabled || serverDrawings.operation !== null
+                }
+                title="Save current drawing and create a new one"
+              >
+                New
+              </Button>
+              <Button
+                className={styles.saveButton}
                 onSelect={() => void serverDrawings.save(false)}
                 disabled={
                   serverDrawings.disabled || serverDrawings.operation !== null
@@ -836,7 +844,7 @@ const ExcalidrawWrapper = () => {
                     onSelect={() =>
                       setShareDialogState({ isOpen: true, type: "share" })
                     }
-                    editorInterface={editorInterface}
+                    aria-label={t("labels.share")}
                   />
                 </>
               )}
