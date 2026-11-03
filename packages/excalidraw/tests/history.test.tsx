@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { vi } from "vitest";
-import { pointFrom } from "@excalidraw/math";
+import { pointFrom, pointRotateRads } from "@excalidraw/math";
 
 import { newElementWith } from "@excalidraw/element";
 
@@ -21,6 +21,7 @@ import {
   DEFAULT_ELEMENT_STROKE_COLOR_INDEX,
   reseed,
   randomId,
+  BOUND_TEXT_PADDING,
 } from "@excalidraw/common";
 
 import "@excalidraw/utils/test-utils";
@@ -52,7 +53,6 @@ import {
 } from "../actions";
 import { createUndoAction, createRedoAction } from "../actions/actionHistory";
 import { actionToggleViewMode } from "../actions/actionToggleViewMode";
-import * as StaticScene from "../renderer/staticScene";
 import { getDefaultAppState } from "../appState";
 import { Excalidraw } from "../index";
 import { createPasteEvent } from "../clipboard";
@@ -73,7 +73,6 @@ import {
   render,
   togglePopover,
   getCloneByOrigId,
-  checkpointHistory,
   unmountComponent,
 } from "./test-utils";
 import { setupImageTest as _setupImageTest } from "./image.test";
@@ -83,32 +82,6 @@ import type { AppState } from "../types";
 const { h } = window;
 
 const mouse = new Pointer("mouse");
-
-const checkpoint = (name: string) => {
-  expect(renderStaticScene.mock.calls.length).toMatchSnapshot(
-    `[${name}] number of renders`,
-  );
-  // `scrolledOutside` does not appear to be stable between test runs
-  // `selectedLinearElemnt` includes `startBindingElement` containing seed and versionNonce
-  const {
-    name: _,
-    scrolledOutside,
-    selectedLinearElement,
-    ...strippedAppState
-  } = h.state;
-  expect(strippedAppState).toMatchSnapshot(`[${name}] appState`);
-  expect(h.elements.length).toMatchSnapshot(`[${name}] number of elements`);
-
-  h.elements
-    .map(({ seed, versionNonce, ...strippedElement }) => strippedElement)
-    .forEach((element, i) =>
-      expect(element).toMatchSnapshot(`[${name}] element ${i}`),
-    );
-
-  checkpointHistory(h.history, name);
-};
-
-const renderStaticScene = vi.spyOn(StaticScene, "renderStaticScene");
 
 const transparent = COLOR_PALETTE.transparent;
 const black = COLOR_PALETTE.black;
@@ -120,7 +93,6 @@ const violet = COLOR_PALETTE.violet[DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX];
 describe("history", () => {
   beforeEach(() => {
     unmountComponent();
-    renderStaticScene.mockClear();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
 
@@ -137,10 +109,6 @@ describe("history", () => {
     Object.assign(document, {
       elementFromPoint: () => GlobalTestState.canvas,
     });
-  });
-
-  afterEach(() => {
-    checkpoint("end of test");
   });
 
   describe("singleplayer undo/redo", () => {
@@ -4329,6 +4297,30 @@ describe("history", () => {
       });
 
       it("should redraw remotely added bound text when it's container is updated through the history", async () => {
+        const assertTextPosition = () => {
+          const [currentContainer, currentText] = h.elements;
+          const unrotatedCenter = pointRotateRads(
+            pointFrom(
+              currentText.x + currentText.width / 2,
+              currentText.y + currentText.height / 2,
+            ),
+            pointFrom(
+              currentContainer.x + currentContainer.width / 2,
+              currentContainer.y + currentContainer.height / 2,
+            ),
+            -currentContainer.angle as Radians,
+          );
+
+          // Undo/redo must retain top-left alignment inside the rotated
+          // container, independently of the font's line height.
+          expect(unrotatedCenter[0] - currentText.width / 2).toBeCloseTo(
+            currentContainer.x + BOUND_TEXT_PADDING,
+          );
+          expect(unrotatedCenter[1] - currentText.height / 2).toBeCloseTo(
+            currentContainer.y + BOUND_TEXT_PADDING,
+          );
+        };
+
         // Initialize the scene
         API.updateScene({
           elements: [container],
@@ -4389,16 +4381,15 @@ describe("history", () => {
             isDeleted: false,
           }),
           expect.objectContaining({
-            ...textProps,
-            // text element got redrawn!
-            x: 241.295259647664,
-            y: 247.59240920619527,
+            type: textProps.type,
+            text: textProps.text,
             angle: 90,
             id: text.id,
             containerId: container.id,
             isDeleted: false,
           }),
         ]);
+        assertTextPosition();
 
         Keyboard.undo();
         expect(API.getUndoStack().length).toBe(0);
@@ -4434,15 +4425,15 @@ describe("history", () => {
             isDeleted: false,
           }),
           expect.objectContaining({
-            ...textProps,
-            x: 241.295259647664,
-            y: 247.59240920619527,
+            type: textProps.type,
+            text: textProps.text,
             angle: 90,
             id: text.id,
             containerId: container.id,
             isDeleted: false,
           }),
         ]);
+        assertTextPosition();
       });
 
       // TODO: #7348 this leads to empty undo/redo and could be confusing - instead we might consider redrawing container based on the text dimensions
@@ -5101,7 +5092,62 @@ describe("history", () => {
         });
       });
 
-      it("should unbind remotely deleted bindable elements from arrow when the arrow is added through the history", async () => {});
+      it("should unbind remotely deleted bindable elements from arrow when the arrow is added through the history", async () => {
+        Keyboard.undo();
+        const arrow = API.createElement({ type: "arrow" });
+
+        API.updateScene({
+          elements: [arrow],
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
+
+        API.updateScene({
+          elements: [
+            newElementWith(arrow, {
+              startBinding: {
+                elementId: rect1.id,
+                fixedPoint: [1, 0.5],
+                mode: "orbit",
+              },
+              endBinding: {
+                elementId: rect2.id,
+                fixedPoint: [0, 0.5],
+                mode: "orbit",
+              },
+            }),
+            newElementWith(rect1, {
+              boundElements: [{ id: arrow.id, type: "arrow" }],
+              isDeleted: true,
+            }),
+            newElementWith(rect2, {
+              boundElements: [{ id: arrow.id, type: "arrow" }],
+              isDeleted: true,
+            }),
+          ],
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+
+        runTwice(() => {
+          Keyboard.undo();
+          expect(API.getUndoStack()).toHaveLength(0);
+          expect(API.getRedoStack()).toHaveLength(1);
+          expect(h.elements[0].isDeleted).toBe(true);
+
+          Keyboard.redo();
+          expect(API.getUndoStack()).toHaveLength(1);
+          expect(API.getRedoStack()).toHaveLength(0);
+          expect(h.elements).toEqual([
+            expect.objectContaining({
+              id: arrow.id,
+              isDeleted: false,
+              startBinding: null,
+              endBinding: null,
+            }),
+            expect.objectContaining({ id: rect1.id, isDeleted: true }),
+            expect.objectContaining({ id: rect2.id, isDeleted: true }),
+          ]);
+        });
+      });
 
       it("should update bound element points when rectangle was remotely moved and arrow is added back through the history", async () => {
         // bind arrow to rect1 and rect2

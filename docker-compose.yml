@@ -2,22 +2,23 @@ services:
   excalidraw:
     build:
       context: .
-      args:
-        - NODE_ENV=development
+      target: frontend
     container_name: excalidraw
     ports:
       - "3000:80"
-    restart: on-failure
-    stdin_open: true
-    healthcheck:
-      disable: true
-    environment:
-      - NODE_ENV=development
-    volumes:
-      - ./:/opt/node_app/app:delegated
-      - ./package.json:/opt/node_app/package.json
-      - ./yarn.lock:/opt/node_app/yarn.lock
-      - notused:/opt/node_app/app/node_modules
+    restart: unless-stopped
+    depends_on:
+      drawings-api:
+        condition: service_healthy
 
-volumes:
-  notused:
+  drawings-api:
+    build:
+      context: .
+      target: drawings-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DRAWINGS_DIR: /data/drawings
+      PORT: "3001"
+    volumes:
+      - ./drawings:/data/drawings

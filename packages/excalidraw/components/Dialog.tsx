@@ -61,9 +61,13 @@ export const Dialog = (props: DialogProps) => {
     const focusableElements = queryFocusableElements(islandNode);
 
     setTimeout(() => {
-      if (focusableElements.length > 0 && props.autofocus !== false) {
-        // If there's an element other than close, focus it.
-        (focusableElements[1] || focusableElements[0]).focus();
+      if (props.autofocus !== false) {
+        // Keep Escape and keyboard navigation working for read-only dialogs too.
+        const target =
+          focusableElements[1] ||
+          focusableElements[0] ||
+          islandNode.closest<HTMLElement>(".Modal__content");
+        target?.focus();
       }
     });
 
@@ -108,7 +112,7 @@ export const Dialog = (props: DialogProps) => {
       className={clsx("Dialog", props.className, {
         "Dialog--fullscreen": isFullscreen,
       })}
-      labelledBy="dialog-title"
+      labelledBy={props.title ? `${id}-dialog-title` : undefined}
       maxWidth={getDialogSize(props.size)}
       onCloseRequest={onClose}
       closeOnClickOutside={props.closeOnClickOutside}

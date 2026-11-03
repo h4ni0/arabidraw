@@ -8,6 +8,8 @@ import type { AppState } from "@excalidraw/excalidraw/types";
 
 import { STORAGE_KEYS } from "../app_constants";
 
+import { getDrawingIdFromUrl } from "./drawingUrl";
+
 export const saveUsernameToLocalStorage = (username: string) => {
   try {
     localStorage.setItem(
@@ -35,15 +37,44 @@ export const importUsernameFromLocalStorage = (): string | null => {
 };
 
 export const importFromLocalStorage = () => {
+  const drawingId = getDrawingIdFromUrl();
   let savedElements = null;
   let savedState = null;
+  let baseDrawing: AppState["serverDrawing"] = null;
 
   try {
     savedElements = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS);
     savedState = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_APP_STATE);
+    // Ignore the old persisted active drawing. The URL is the only selector.
+    if (drawingId !== null) {
+      savedElements = null;
+    }
   } catch (error: any) {
     // Unable to access localStorage
     console.error(error);
+  }
+
+  try {
+    const draft = JSON.parse(
+      sessionStorage.getItem(STORAGE_KEYS.SESSION_STORAGE_DRAFT) ?? "null",
+    );
+    if (
+      draft &&
+      Array.isArray(draft.elements) &&
+      draft.appState &&
+      typeof draft.appState === "object" &&
+      // Recover pre-URL drafts as unnamed canvases on upgrade. Never use
+      // their old identity to select a server drawing.
+      (draft.drawingId === drawingId ||
+        (draft.drawingId === undefined && drawingId === null)) &&
+      (drawingId === null || draft.baseDrawing?.id === drawingId)
+    ) {
+      savedElements = JSON.stringify(draft.elements);
+      savedState = JSON.stringify(draft.appState);
+      baseDrawing = drawingId === null ? null : draft.baseDrawing;
+    }
+  } catch (error) {
+    console.error("Reading this tab's draft failed", error);
   }
 
   let elements: ExcalidrawElement[] = [];
@@ -64,6 +95,7 @@ export const importFromLocalStorage = () => {
         ...clearAppStateForLocalStorage(
           JSON.parse(savedState) as Partial<AppState>,
         ),
+        serverDrawing: baseDrawing,
       };
     } catch (error: any) {
       console.error(error);

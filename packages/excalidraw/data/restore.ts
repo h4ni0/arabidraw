@@ -445,7 +445,7 @@ export const restoreElement = (
       // For the latter we want to detect the original line height which
       // will likely differ from our per-font fixed line height we now use,
       // to maintain backward compatibility.
-      const lineHeight =
+      let lineHeight =
         element.lineHeight ||
         (element.height
           ? // detect line-height from current element height and font-size
@@ -453,6 +453,19 @@ export const restoreElement = (
           : // no element height likely means programmatic use, so default
             // to a fixed line height
             getLineHeight(element.fontFamily));
+      // Migrate upstream and the earlier 50% default; preserve custom spacing.
+      const defaultLineHeight = getLineHeight(fontFamily);
+      const upstreamLineHeight = defaultLineHeight / 1.3;
+      const upgradeLineHeight =
+        Math.abs(lineHeight - upstreamLineHeight) < 0.000001 ||
+        Math.abs(lineHeight - upstreamLineHeight * 1.5) < 0.000001;
+      if (upgradeLineHeight) {
+        element = {
+          ...element,
+          height: element.height * (defaultLineHeight / lineHeight),
+        };
+        lineHeight = defaultLineHeight;
+      }
       element = restoreElementWithProperties(element, {
         fontSize,
         fontFamily,

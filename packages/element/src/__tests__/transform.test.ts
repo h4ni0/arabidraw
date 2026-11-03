@@ -6,9 +6,49 @@ import {
   type ExcalidrawElementSkeleton,
 } from "../transform";
 
-import type { ExcalidrawArrowElement } from "../types";
+import type {
+  ExcalidrawArrowElement,
+  ExcalidrawElement,
+  ExcalidrawTextElement,
+} from "../types";
 
 const opts = { regenerateIds: false };
+
+const expectBoundLabel = (
+  container: ExcalidrawElement,
+  elements: readonly ExcalidrawElement[],
+  label: { text: string },
+) => {
+  const textId = container.boundElements?.find(
+    ({ type }) => type === "text",
+  )?.id;
+  const text = elements.find(
+    ({ id }) => id === textId,
+  ) as ExcalidrawTextElement;
+  expect(text).toBeDefined();
+  const { text: originalText, ...properties } = label;
+  expect(text).toMatchObject({
+    ...properties,
+    type: "text",
+    originalText,
+    containerId: container.id,
+  });
+  expect(text.height).toBe(
+    text.text.split("\n").length * text.fontSize * text.lineHeight,
+  );
+  expect(Number.isFinite(text.x)).toBe(true);
+  expect(Number.isFinite(text.y)).toBe(true);
+  if (container.type !== "arrow") {
+    expect(text.x).toBeGreaterThanOrEqual(container.x);
+    expect(text.y).toBeGreaterThanOrEqual(container.y);
+    expect(text.x + text.width).toBeLessThanOrEqual(
+      container.x + container.width,
+    );
+    expect(text.y + text.height).toBeLessThanOrEqual(
+      container.y + container.height,
+    );
+  }
+};
 
 describe("Test Transform", () => {
   it("should generate id unless opts.regenerateIds is set to false explicitly", () => {
@@ -116,12 +156,12 @@ describe("Test Transform", () => {
     convertToExcalidrawElements(
       elements as ExcalidrawElementSkeleton[],
       opts,
-    ).forEach((ele) => {
-      expect(ele).toMatchSnapshot({
-        seed: expect.any(Number),
-        versionNonce: expect.any(Number),
-        id: expect.any(String),
-      });
+    ).forEach((element, index) => {
+      expect(element).toMatchObject(elements[index]);
+      const text = element as ExcalidrawTextElement;
+      expect(text.originalText).toBe(elements[index].text);
+      expect(text.height).toBe(text.fontSize * text.lineHeight);
+      expect(text.width).toBeGreaterThan(0);
     });
   });
 
@@ -245,12 +285,10 @@ describe("Test Transform", () => {
 
     expect(excalidrawElements.length).toBe(12);
 
-    excalidrawElements.forEach((ele) => {
-      expect(ele).toMatchSnapshot({
-        seed: expect.any(Number),
-        versionNonce: expect.any(Number),
-        id: expect.any(String),
-      });
+    elements.forEach(({ label, ...properties }, index) => {
+      const container = excalidrawElements[index];
+      expect(container).toMatchObject(properties);
+      expectBoundLabel(container, excalidrawElements, label);
     });
   });
 
@@ -303,12 +341,16 @@ describe("Test Transform", () => {
 
     expect(excalidrawElements.length).toBe(8);
 
-    excalidrawElements.forEach((ele) => {
-      expect(ele).toMatchSnapshot({
-        seed: expect.any(Number),
-        versionNonce: expect.any(Number),
-        id: expect.any(String),
-      });
+    elements.forEach(({ label, type, strokeColor, strokeWidth }, index) => {
+      const arrow = excalidrawElements[index];
+      expect(arrow.type).toBe(type);
+      if (strokeColor !== undefined) {
+        expect(arrow.strokeColor).toBe(strokeColor);
+      }
+      if (strokeWidth !== undefined) {
+        expect(arrow.strokeWidth).toBe(strokeWidth);
+      }
+      expectBoundLabel(arrow, excalidrawElements, label);
     });
   });
 
@@ -441,7 +483,7 @@ describe("Test Transform", () => {
 
       expect(text).toMatchObject({
         x: 240,
-        y: 226.5,
+        y: arrow.y - text.height / 2,
         type: "text",
         text: "HELLO WORLD!!",
         containerId: arrow.id,
@@ -469,14 +511,6 @@ describe("Test Transform", () => {
             type: "arrow",
           },
         ],
-      });
-
-      excalidrawElements.forEach((ele) => {
-        expect(ele).toMatchSnapshot({
-          seed: expect.any(Number),
-          versionNonce: expect.any(Number),
-          id: expect.any(String),
-        });
       });
     });
 
@@ -523,7 +557,7 @@ describe("Test Transform", () => {
 
       expect(text1).toMatchObject({
         x: 240,
-        y: 226.5,
+        y: arrow.y - text1.height / 2,
         type: "text",
         text: "HELLO WORLD!!",
         containerId: arrow.id,
@@ -531,7 +565,7 @@ describe("Test Transform", () => {
 
       expect(text2).toMatchObject({
         x: 185,
-        y: 226.5,
+        y: arrow.y - text2.height / 2,
         type: "text",
         boundElements: [
           {
@@ -543,7 +577,7 @@ describe("Test Transform", () => {
 
       expect(text3).toMatchObject({
         x: 355,
-        y: 226.5,
+        y: arrow.y - text3.height / 2,
         type: "text",
         boundElements: [
           {
@@ -551,14 +585,6 @@ describe("Test Transform", () => {
             type: "arrow",
           },
         ],
-      });
-
-      excalidrawElements.forEach((ele) => {
-        expect(ele).toMatchSnapshot({
-          seed: expect.any(Number),
-          versionNonce: expect.any(Number),
-          id: expect.any(String),
-        });
       });
     });
 
@@ -669,13 +695,29 @@ describe("Test Transform", () => {
 
       expect(excalidrawElements.length).toBe(4);
 
-      excalidrawElements.forEach((ele) => {
-        expect(ele).toMatchSnapshot({
-          seed: expect.any(Number),
-          versionNonce: expect.any(Number),
-          id: expect.any(String),
-        });
+      const [start, end, arrow] = excalidrawElements;
+      expect(start).toMatchObject({
+        type: "text",
+        id: "text-1",
+        text: "HEYYYYY",
+        strokeColor: "#c2255c",
       });
+      expect(end).toMatchObject({
+        type: "text",
+        id: "text-2",
+        text: "Whats up ?",
+      });
+      expect(arrow).toMatchObject({
+        type: "arrow",
+        startBinding: { elementId: start.id },
+        endBinding: { elementId: end.id },
+      });
+      expect(start.boundElements).toContainEqual({
+        id: arrow.id,
+        type: "arrow",
+      });
+      expect(end.boundElements).toContainEqual({ id: arrow.id, type: "arrow" });
+      expectBoundLabel(arrow, excalidrawElements, { text: "HELLO WORLD!!" });
     });
 
     it("should bind arrows to existing elements if ids are correct", () => {
@@ -957,12 +999,27 @@ describe("Test Transform", () => {
 
     const excalidrawElements = convertToExcalidrawElements(elements, opts);
     expect(excalidrawElements.length).toBe(12);
-    excalidrawElements.forEach((ele) => {
-      expect(ele).toMatchSnapshot({
-        seed: expect.any(Number),
-        versionNonce: expect.any(Number),
-        id: expect.any(String),
+    elements.forEach((input) => {
+      const element = excalidrawElements.find(({ id }) => id === input.id)!;
+      expect(element).toMatchObject({
+        id: input.id,
+        type: input.type,
+        groupIds: input.groupIds,
       });
+      if ("label" in input && input.label) {
+        expectBoundLabel(element, excalidrawElements, input.label);
+      }
+      if (input.type === "arrow") {
+        const arrow = element as ExcalidrawArrowElement;
+        expect(arrow.points).toHaveLength(input.points!.length);
+        expect(
+          arrow.points.every(
+            ([x, y]) => Number.isFinite(x) && Number.isFinite(y),
+          ),
+        ).toBe(true);
+        expect(arrow.startBinding?.elementId).toBe(input.start?.id);
+        expect(arrow.endBinding?.elementId).toBe(input.end?.id);
+      }
     });
   });
 });

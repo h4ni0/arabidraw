@@ -217,5 +217,5 @@ export const getLineHeight = (fontFamily: FontFamilyValues) => {
     FONT_METADATA[fontFamily]?.metrics ||
     FONT_METADATA[FONT_FAMILY.Excalifont].metrics;
 
-  return lineHeight as ExcalidrawTextElement["lineHeight"];
+  return (lineHeight * 1.3) as ExcalidrawTextElement["lineHeight"];
 };

@@ -199,53 +199,6 @@ exports[`Test MobileMenu > should initialize with welcome screen and hide once u
         Live collaboration...
       </div>
     </button>
-    <a
-      class="welcome-screen-menu-item "
-      href="undefined/plus?utm_source=excalidraw&utm_medium=app&utm_content=welcomeScreenGuest"
-      rel="noopener"
-      target="_blank"
-    >
-      <div
-        class="welcome-screen-menu-item__icon"
-      >
-        <svg
-          aria-hidden="true"
-          class=""
-          fill="none"
-          focusable="false"
-          role="img"
-          stroke="currentColor"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          viewBox="0 0 24 24"
-        >
-          <g
-            stroke-width="1.5"
-          >
-            <path
-              d="M0 0h24v24H0z"
-              fill="none"
-              stroke="none"
-            />
-            <path
-              d="M15 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2"
-            />
-            <path
-              d="M21 12h-13l3 -3"
-            />
-            <path
-              d="M11 15l-3 -3"
-            />
-          </g>
-        </svg>
-      </div>
-      <div
-        class="welcome-screen-menu-item__text"
-      >
-        Sign up
-      </div>
-    </a>
   </div>
 </div>
 `;

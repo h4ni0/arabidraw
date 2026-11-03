@@ -380,6 +380,12 @@ export interface AppState {
   cursorButton: "up" | "down";
   scrolledOutside: boolean;
   name: string | null;
+  serverDrawing: {
+    id: string;
+    name: string;
+    updatedAt: string;
+    revision: string;
+  } | null;
   isResizing: boolean;
   isRotating: boolean;
   zoom: Zoom;

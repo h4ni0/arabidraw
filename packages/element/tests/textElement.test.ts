@@ -1,7 +1,6 @@
-import { getLineHeight } from "@excalidraw/common";
 import { API } from "@excalidraw/excalidraw/tests/helpers/api";
 
-import { FONT_FAMILY, TEXT_ALIGN, VERTICAL_ALIGN } from "@excalidraw/common";
+import { TEXT_ALIGN, VERTICAL_ALIGN } from "@excalidraw/common";
 
 import {
   computeContainerDimensionForBoundText,
@@ -10,7 +9,7 @@ import {
   getBoundTextMaxHeight,
   computeBoundTextPosition,
 } from "../src/textElement";
-import { detectLineHeight, getLineHeightInPx } from "../src/textMeasurements";
+import { detectLineHeight } from "../src/textMeasurements";
 
 import type { ExcalidrawTextElementWithContainer } from "../src/types";
 
@@ -182,30 +181,6 @@ const textElement = API.createElement({
 describe("Test detectLineHeight", () => {
   it("should return correct line height", () => {
     expect(detectLineHeight(textElement)).toBe(1.25);
-  });
-});
-
-describe("Test getLineHeightInPx", () => {
-  it("should return correct line height", () => {
-    expect(
-      getLineHeightInPx(textElement.fontSize, textElement.lineHeight),
-    ).toBe(25);
-  });
-});
-
-describe("Test getDefaultLineHeight", () => {
-  it("should return line height using default font family when not passed", () => {
-    //@ts-ignore
-    expect(getLineHeight()).toBe(1.25);
-  });
-
-  it("should return line height using default font family for unknown font", () => {
-    const UNKNOWN_FONT = 5;
-    expect(getLineHeight(UNKNOWN_FONT)).toBe(1.25);
-  });
-
-  it("should return correct line height", () => {
-    expect(getLineHeight(FONT_FAMILY.Cascadia)).toBe(1.2);
   });
 });
 

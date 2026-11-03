@@ -1,0 +1,39 @@
+:global(.excalidraw) .toolbar {
+  > :global(.excalidraw-button) {
+    width: auto;
+    padding: 0 0.75rem;
+    white-space: nowrap;
+  }
+
+  .saveButton {
+    --button-bg: var(--color-primary);
+    --button-color: var(--color-surface-lowest);
+    --button-border: var(--color-primary);
+    --button-hover-bg: var(--color-primary-darker);
+    --button-hover-border: var(--color-primary-darker);
+    --button-active-bg: var(--color-primary-darkest);
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  > :global(.collab-button) {
+    --button-bg: var(--island-bg-color);
+    --button-color: var(--color-on-surface);
+    --button-border: var(--default-border-color);
+    --button-hover-bg: var(--color-surface-high);
+    --button-hover-border: var(--default-border-color);
+    --button-active-bg: var(--color-surface-high);
+
+    width: var(--default-button-size);
+    height: var(--default-button-size);
+    padding: 0;
+
+    svg {
+      width: var(--default-icon-size);
+      height: var(--default-icon-size);
+    }
+  }
+}

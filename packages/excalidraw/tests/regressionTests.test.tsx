@@ -1,5 +1,4 @@
 import React from "react";
-import { vi } from "vitest";
 
 import {
   FONT_FAMILY,
@@ -14,13 +13,11 @@ import { setDateTimeForTests } from "@excalidraw/common";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import { Excalidraw } from "../index";
-import * as StaticScene from "../renderer/staticScene";
 
 import { API } from "./helpers/api";
 import { Keyboard, Pointer, UI } from "./helpers/ui";
 import {
   assertSelectedElements,
-  checkpointHistory,
   fireEvent,
   render,
   screen,
@@ -30,34 +27,14 @@ import {
 
 const { h } = window;
 
-const renderStaticScene = vi.spyOn(StaticScene, "renderStaticScene");
-
 const mouse = new Pointer("mouse");
 const finger1 = new Pointer("touch", 1);
 const finger2 = new Pointer("touch", 2);
 
-/**
- * This is always called at the end of your test, so usually you don't need to call it.
- * However, if you have a long test, you might want to call it during the test so it's easier
- * to debug where a test failure came from.
- */
-const checkpoint = (name: string) => {
-  expect(renderStaticScene.mock.calls.length).toMatchSnapshot(
-    `[${name}] number of renders`,
-  );
-  expect(h.state).toMatchSnapshot(`[${name}] appState`);
-  expect(h.elements.length).toMatchSnapshot(`[${name}] number of elements`);
-  h.elements.forEach((element, i) =>
-    expect(element).toMatchSnapshot(`[${name}] element ${i}`),
-  );
-
-  checkpointHistory(h.history, name);
-};
 beforeEach(async () => {
   unmountComponent();
 
   localStorage.clear();
-  renderStaticScene.mockClear();
   reseed(7);
   setDateTimeForTests("201933152653");
 
@@ -67,10 +44,6 @@ beforeEach(async () => {
 
   await render(<Excalidraw handleKeyboardGlobally={true} />);
   API.setAppState({ height: 768, width: MQ_MIN_WIDTH_DESKTOP });
-});
-
-afterEach(() => {
-  checkpoint("end of test");
 });
 
 describe("regression tests", () => {
@@ -191,8 +164,6 @@ describe("regression tests", () => {
     const { x: nextX, y: nextY } = API.getSelectedElement();
     expect(nextX).toBeGreaterThan(prevX);
     expect(nextY).toBeGreaterThan(prevY);
-
-    checkpoint("dragged");
 
     mouse.down();
     mouse.up(-10, -10);

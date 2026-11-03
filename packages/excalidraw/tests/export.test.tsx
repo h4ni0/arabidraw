@@ -88,9 +88,11 @@ describe("export", () => {
       { ...getDefaultAppState(), exportEmbedScene: true },
       {},
     );
-    const svgText = svg.outerHTML;
-
-    expect(svgText).toMatchSnapshot(`svg-embdedded scene export output`);
+    const decoded = JSON.parse(decodeSvgBase64Payload({ svg: svg.outerHTML }));
+    expect(decoded.elements).toEqual([
+      expect.objectContaining({ id: "A", type: "text", text: "😀" }),
+    ]);
+    expect(svg.querySelector("text")?.textContent).toBe("😀");
   });
 
   it("import embedded png (legacy v1)", async () => {

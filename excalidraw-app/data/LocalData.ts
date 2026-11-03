@@ -87,9 +87,34 @@ const saveDataStateToLocalStorage = (
       _appState.openSidebar = null;
     }
 
+    // A tab must restore its own canvas, even after another tab saves a different drawing.
+    try {
+      sessionStorage.setItem(
+        STORAGE_KEYS.SESSION_STORAGE_DRAFT,
+        JSON.stringify({
+          // This is a recovery snapshot, never a pointer to the active drawing.
+          // It may only be restored when its ID matches the URL.
+          drawingId: appState.serverDrawing?.id ?? null,
+          baseDrawing: appState.serverDrawing,
+          elements: getNonDeletedElements(elements),
+          appState: _appState,
+        }),
+      );
+    } catch (error) {
+      console.error("Saving this tab's draft failed", error);
+      // Never restore a stale tab snapshot after a failed write.
+      try {
+        sessionStorage.removeItem(STORAGE_KEYS.SESSION_STORAGE_DRAFT);
+      } catch {}
+    }
+
+    // Only an unnamed draft can be restored at the root URL. Saved drawings
+    // are fetched by URL in new tabs, never selected from shared storage.
     localStorage.setItem(
       STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS,
-      JSON.stringify(getNonDeletedElements(elements)),
+      JSON.stringify(
+        appState.serverDrawing ? [] : getNonDeletedElements(elements),
+      ),
     );
     localStorage.setItem(
       STORAGE_KEYS.LOCAL_STORAGE_APP_STATE,
