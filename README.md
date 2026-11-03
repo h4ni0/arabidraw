@@ -2,6 +2,17 @@
 
 A self-hosted [Excalidraw](https://github.com/excalidraw/excalidraw) fork with Qomra Arabic fonts, presentation mode, and a server-backed drawing gallery.
 
+## New features
+
+- Drawing URLs at `/drawing/<id>`; new canvases get an ID on their first save.
+- Unsaved-edit warnings and recovery after reload, without saving to the server.
+- Back/Forward navigation between drawings.
+- Home and custom top-level folders, with optional subfolders and parent selection.
+- Folder renaming, reparenting, and drag-and-drop drawing moves.
+- Split gallery with cross-folder search, drawing list, and large preview.
+- Lazy-loaded, cached row thumbnails with limited concurrent rendering.
+- Wider gallery: 80% of the desktop viewport, with a responsive mobile layout.
+
 ## Run with Docker
 
 ```sh
@@ -26,11 +37,16 @@ The toolbar highlights **Save** as the primary action, with a secondary **New** 
 - **Load** asks before discarding local changes. Images and backgrounds are included.
 - **Delete** requires confirmation. Deleting the active saved copy keeps its canvas open, ready to save as a new drawing.
 - Clearing the canvas or importing a file detaches the previous server drawing, preventing the next save from accidentally overwriting it.
-- Browser autosave remains separate from explicit server saving. The browser restores the canvas and its server identity together, including unsaved edits. After upgrading from the original gallery implementation, load a saved drawing once to establish its identity in the new format.
+- The URL selects the saved drawing. Copy it to open the saved version in another tab; unsaved edits remain local to their tab.
+- Reload warns about unsaved edits and restores them with their original saved revision, without saving to the server.
 - If another tab or user changes a saved drawing, an outdated save or delete is rejected. Load the latest version or save your edits as a separate copy.
 - Save/load/delete/new is disabled during live collaboration. Requests are limited to 50 MB including embedded images; names are limited to 200 characters.
-
-Gallery previews are loaded on demand, with two concurrent jobs and a cache of 64 thumbnails of up to 240px. Each first preview downloads the saved scene.
+- Select a gallery row to preview it; **Open drawing** or double-click loads it.
+- New folders default to top-level from Home, or to the current custom folder as their parent. **Edit folder** changes the name or parent.
+- Drag drawings onto folders, or use **Move** for touch and keyboard navigation.
+- Deleting a folder moves its drawings to Home and promotes its subfolders; duplicate sibling names prevent deletion.
+- Include `drawings/.folders.json` in backups. Organization changes preserve drawing URLs, revisions, and unsaved edits.
+- Previews share a bounded cache and run at most two jobs concurrently; uncached previews download the saved scene.
 
 ## Fork features
 
@@ -67,7 +83,7 @@ The application suite checks editor behavior, including text layout and bindings
 
 `test:drawings` launches its own API and frontend on free localhost ports, creates a fresh browser profile, and stores **all test drawings in a new OS temporary directory**. It never reads or modifies `./drawings` or an existing server. Screenshots and failure artifacts stay in the printed temporary path. To use an installed Chromium browser, set `BROWSER_EXECUTABLE_PATH`.
 
-The suite covers creating, updating, renaming, copying, reloading, unsaved edits, load/delete cancellation, imported scenes, Arabic text and images, backgrounds, network failures, concurrent writers, delayed saves, mobile layout, API validation, and persistence across API restarts.
+The suite covers copied URLs in fresh browsers, Back/Forward navigation, invalid IDs, creating, updating, renaming, copying, reloading, unsaved edits, load/delete cancellation, imported scenes, Arabic text and images, backgrounds, network failures, concurrent writers, delayed saves, mobile layout, API validation, and persistence across API restarts.
 
 ## License
 

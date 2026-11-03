@@ -101,6 +101,8 @@ import {
 } from "./data";
 
 import { updateStaleImageStatuses } from "./data/FileManager";
+import { getDrawingIdFromUrl } from "./data/drawingUrl";
+import { restoreServerDrawing } from "./data/serverDrawings";
 import {
   importFromLocalStorage,
   importUsernameFromLocalStorage,
@@ -212,6 +214,45 @@ const initializeScene = async (opts: {
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
 
   const localDataState = importFromLocalStorage();
+
+  const drawingId = getDrawingIdFromUrl();
+  if (
+    drawingId !== null &&
+    !jsonBackendMatch &&
+    !externalUrlMatch &&
+    !getCollaborationLinkData(window.location.href)
+  ) {
+    // A matching tab draft preserves unsaved edits. With no matching draft,
+    // the URL loads the saved document, including images, on any browser.
+    if (!localDataState.appState?.serverDrawing) {
+      try {
+        return {
+          scene: {
+            ...(await restoreServerDrawing(drawingId, {
+              ...opts.excalidrawAPI.getAppState(),
+              ...localDataState.appState,
+            })),
+            scrollToContent: true,
+          },
+          isExternalScene: false,
+        };
+      } catch (error) {
+        return {
+          scene: {
+            elements: [],
+            appState: {
+              serverDrawing: null,
+              errorMessage:
+                error instanceof Error
+                  ? error.message
+                  : "Could not load drawing.",
+            },
+          },
+          isExternalScene: false,
+        };
+      }
+    }
+  }
 
   let scene: Omit<
     RestoredDataState,
@@ -426,7 +467,7 @@ const ExcalidrawWrapper = () => {
       data: ResolutionType<typeof initializeScene>,
       isInitialLoad = false,
     ) => {
-      if (!data.scene) {
+      if (!data.scene || data.scene.files) {
         return;
       }
       if (collabAPI?.isCollaborating()) {
@@ -647,7 +688,10 @@ const ExcalidrawWrapper = () => {
 
     // this check is redundant, but since this is a hot path, it's best
     // not to evaludate the nested expression every time
-    if (!LocalData.isSavePaused()) {
+    if (
+      !LocalData.isSavePaused() &&
+      (getDrawingIdFromUrl() === null || appState.serverDrawing !== null)
+    ) {
       LocalData.save(elements, appState, files, () => {
         if (excalidrawAPI) {
           let didChange = false;

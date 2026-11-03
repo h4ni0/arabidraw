@@ -1,5 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, open, readdir, rename, unlink } from "node:fs/promises";
+import {
+  mkdir,
+  open,
+  readdir,
+  readFile,
+  rename,
+  unlink,
+} from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 
@@ -304,12 +311,304 @@ const deleteDrawing = (id: string, revision: string): Promise<void> =>
     }
   });
 
+interface FolderCatalog {
+  folders: { id: string; name: string; parentId: string | null }[];
+  drawingFolders: Record<string, string>;
+}
+
+// Organization is independent of scene revisions and never rewrites drawings.
+const foldersPath = path.join(DRAWINGS_DIR, ".folders.json");
+const readFolders = async (): Promise<FolderCatalog> => {
+  let contents;
+  try {
+    contents = await readFile(foldersPath, "utf8");
+  } catch (error) {
+    if (isMissing(error)) {
+      return { folders: [], drawingFolders: {} };
+    }
+    throw error;
+  }
+  const catalog = JSON.parse(contents);
+  const folders = isObject(catalog) ? catalog.folders : null;
+  if (
+    !isObject(catalog) ||
+    !Array.isArray(catalog.folders) ||
+    !catalog.folders.every(
+      (folder) =>
+        isObject(folder) &&
+        typeof folder.id === "string" &&
+        UUID_PATTERN.test(folder.id) &&
+        typeof folder.name === "string" &&
+        (folder.parentId === undefined ||
+          folder.parentId === null ||
+          folder.parentId === "home" ||
+          (typeof folder.parentId === "string" &&
+            UUID_PATTERN.test(folder.parentId))),
+    ) ||
+    !isObject(catalog.drawingFolders) ||
+    !Object.entries(catalog.drawingFolders).every(
+      ([id, folderId]) =>
+        UUID_PATTERN.test(id) &&
+        typeof folderId === "string" &&
+        Array.isArray(folders) &&
+        folders.some((folder: { id: string }) => folder.id === folderId),
+    )
+  ) {
+    throw new Error("Invalid folder catalog");
+  }
+  const normalized: FolderCatalog = {
+    folders: catalog.folders.map((folder) => ({
+      ...folder,
+      parentId: folder.parentId ?? null,
+    })),
+    drawingFolders: catalog.drawingFolders as Record<string, string>,
+  };
+  const byId = new Map(normalized.folders.map((folder) => [folder.id, folder]));
+  if (byId.size !== normalized.folders.length) {
+    throw new Error("Duplicate folder IDs in catalog");
+  }
+  for (const folder of normalized.folders) {
+    const seen = new Set([folder.id]);
+    let parentId = folder.parentId;
+    while (parentId !== null && parentId !== "home") {
+      const parent = byId.get(parentId);
+      if (!parent || seen.has(parentId)) {
+        throw new Error("Invalid folder hierarchy");
+      }
+      seen.add(parentId);
+      parentId = parent.parentId;
+    }
+  }
+  return normalized;
+};
+
+const updateFolders = (
+  update: (catalog: FolderCatalog) => Promise<void> | void,
+) =>
+  mutateDrawing("folders", async () => {
+    const catalog = await readFolders();
+    await update(catalog);
+    const temporaryPath = path.join(
+      DRAWINGS_DIR,
+      `.folders.${randomUUID()}.tmp`,
+    );
+    try {
+      const file = await open(temporaryPath, "wx", 0o600);
+      try {
+        await file.writeFile(JSON.stringify(catalog), "utf8");
+        await file.sync();
+      } finally {
+        await file.close();
+      }
+      await rename(temporaryPath, foldersPath);
+    } finally {
+      await unlink(temporaryPath).catch((error) => {
+        if (!isMissing(error)) {
+          console.error("Unable to clean temporary folder catalog", error);
+        }
+      });
+    }
+    return catalog;
+  });
+
+const parseFolderName = (body: unknown) => {
+  if (!isObject(body) || typeof body.name !== "string") {
+    throw new HttpError(400, "A folder name is required");
+  }
+  const name = body.name.trim();
+  if (!name || name.length > 200) {
+    throw new HttpError(400, "Folder name must contain 1 to 200 characters");
+  }
+  return name;
+};
+
+// null means top-level, "home" is the built-in Home folder, and a UUID
+// identifies a custom parent. Older catalogs have no parent and stay top-level.
+const parseFolderParent = (body: unknown): string | null | undefined => {
+  if (!isObject(body) || body.parentId === undefined) {
+    return undefined;
+  }
+  if (body.parentId === null || body.parentId === "home") {
+    return body.parentId;
+  }
+  if (typeof body.parentId !== "string" || !UUID_PATTERN.test(body.parentId)) {
+    throw new HttpError(400, "Invalid parent folder ID");
+  }
+  return body.parentId.toLowerCase();
+};
+
+const checkFolderParent = (
+  catalog: FolderCatalog,
+  parentId: string | null,
+  id?: string,
+) => {
+  const seen = new Set(id ? [id] : []);
+  const byId = new Map(catalog.folders.map((folder) => [folder.id, folder]));
+  let current = parentId;
+  while (current !== null && current !== "home") {
+    if (seen.has(current)) {
+      throw new HttpError(
+        409,
+        "A folder cannot be inside itself or one of its subfolders",
+      );
+    }
+    seen.add(current);
+    const parent = byId.get(current);
+    if (!parent) {
+      throw new HttpError(404, "Parent folder not found. Refresh the gallery.");
+    }
+    current = parent.parentId;
+  }
+};
+
+const checkFolderName = (
+  catalog: FolderCatalog,
+  name: string,
+  parentId: string | null,
+  id?: string,
+) => {
+  if (
+    (parentId === null && name.toLowerCase() === "home") ||
+    catalog.folders.some(
+      (folder) =>
+        folder.id !== id &&
+        folder.parentId === parentId &&
+        folder.name.toLowerCase() === name.toLowerCase(),
+    )
+  ) {
+    throw new HttpError(
+      409,
+      "A folder with this name already exists in this location",
+    );
+  }
+};
+
 const handleRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
 ) => {
   try {
     const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+    const folderMatch = /^\/api\/drawings\/folders(?:\/([^/]+))?$/.exec(
+      pathname,
+    );
+    if (folderMatch) {
+      const id = folderMatch[1]?.toLowerCase();
+      if (id && !UUID_PATTERN.test(id)) {
+        throw new HttpError(400, "Invalid folder ID");
+      }
+      if (!id && request.method === "GET") {
+        sendJson(response, 200, await readFolders());
+        return;
+      }
+      if (!id && request.method === "POST") {
+        const body = await readBody(request);
+        const name = parseFolderName(body);
+        const parentId = parseFolderParent(body) ?? null;
+        sendJson(
+          response,
+          201,
+          await updateFolders((catalog) => {
+            checkFolderParent(catalog, parentId);
+            checkFolderName(catalog, name, parentId);
+            catalog.folders.push({ id: randomUUID(), name, parentId });
+          }),
+        );
+        return;
+      }
+      if (id && (request.method === "PUT" || request.method === "DELETE")) {
+        const body = request.method === "PUT" ? await readBody(request) : null;
+        const name = request.method === "PUT" ? parseFolderName(body) : null;
+        const requestedParent = parseFolderParent(body);
+        sendJson(
+          response,
+          200,
+          await updateFolders((catalog) => {
+            const folder = catalog.folders.find((item) => item.id === id);
+            if (!folder) {
+              throw new HttpError(
+                404,
+                "Folder not found. Refresh the gallery.",
+              );
+            }
+            if (name !== null) {
+              const parentId =
+                requestedParent === undefined
+                  ? folder.parentId
+                  : requestedParent;
+              checkFolderParent(catalog, parentId, id);
+              checkFolderName(catalog, name, parentId, id);
+              folder.name = name;
+              folder.parentId = parentId;
+            } else {
+              catalog.folders = catalog.folders.filter(
+                (item) => item.id !== id,
+              );
+              // Preserve subfolders by promoting them to the deleted folder's parent.
+              for (const child of catalog.folders) {
+                if (child.parentId === id) {
+                  child.parentId = folder.parentId;
+                }
+              }
+              for (const child of catalog.folders) {
+                checkFolderName(catalog, child.name, child.parentId, child.id);
+              }
+              for (const [drawingId, folderId] of Object.entries(
+                catalog.drawingFolders,
+              )) {
+                if (folderId === id) {
+                  delete catalog.drawingFolders[drawingId];
+                }
+              }
+            }
+          }),
+        );
+        return;
+      }
+      response.setHeader("Allow", id ? "PUT, DELETE" : "GET, POST");
+      throw new HttpError(405, "Method not allowed");
+    }
+    const moveMatch = /^\/api\/drawings\/([^/]+)\/folder$/.exec(pathname);
+    if (moveMatch) {
+      const id = moveMatch[1].toLowerCase();
+      if (!UUID_PATTERN.test(id)) {
+        throw new HttpError(400, "Invalid drawing ID");
+      }
+      if (request.method !== "PUT") {
+        response.setHeader("Allow", "PUT");
+        throw new HttpError(405, "Method not allowed");
+      }
+      const body = await readBody(request);
+      if (
+        !isObject(body) ||
+        (body.folderId !== null &&
+          (typeof body.folderId !== "string" ||
+            !UUID_PATTERN.test(body.folderId)))
+      ) {
+        throw new HttpError(400, "A valid folder ID or null is required");
+      }
+      const folderId =
+        typeof body.folderId === "string" ? body.folderId.toLowerCase() : null;
+      sendJson(
+        response,
+        200,
+        await updateFolders(async (catalog) => {
+          await readDrawing(id);
+          if (folderId === null) {
+            delete catalog.drawingFolders[id];
+          } else {
+            if (!catalog.folders.some((folder) => folder.id === folderId)) {
+              throw new HttpError(
+                404,
+                "Folder not found. Refresh the gallery.",
+              );
+            }
+            catalog.drawingFolders[id] = folderId;
+          }
+        }),
+      );
+      return;
+    }
     if (pathname === "/api/drawings") {
       if (request.method === "GET") {
         sendJson(response, 200, await listDrawings());

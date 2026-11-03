@@ -10,9 +10,9 @@ import styles from "./ServerDrawingPreview.module.scss";
 
 import type { DrawingMetadata } from "../data/serverDrawings";
 
-const MAX_PREVIEWS = 64;
+const MAX_PREVIEWS = 24;
 const MAX_CONCURRENT_PREVIEWS = 2;
-const PREVIEW_SIZE = 240;
+const PREVIEW_SIZE = 640;
 
 type PreviewListener = (preview: string | null) => void;
 
@@ -110,7 +110,12 @@ const runQueue = () => {
   }
 };
 
-const requestPreview = (key: string, id: string, listener: PreviewListener) => {
+const requestPreview = (
+  key: string,
+  id: string,
+  listener: PreviewListener,
+  priority: boolean,
+) => {
   const cached = previews.get(key);
   if (cached !== undefined) {
     previews.delete(key);
@@ -122,7 +127,14 @@ const requestPreview = (key: string, id: string, listener: PreviewListener) => {
   if (!job) {
     job = { key, id, abort: new AbortController(), listeners: new Set() };
     jobs.set(key, job);
-    queue.push(job);
+    priority ? queue.unshift(job) : queue.push(job);
+  } else if (priority) {
+    // Selecting a drawing takes precedence over queued row thumbnails.
+    const index = queue.indexOf(job);
+    if (index !== -1) {
+      queue.splice(index, 1);
+      queue.unshift(job);
+    }
   }
   job.listeners.add(listener);
   runQueue();
@@ -144,10 +156,12 @@ const requestPreview = (key: string, id: string, listener: PreviewListener) => {
 
 export const ServerDrawingPreview = ({
   drawing,
+  thumbnail = false,
 }: {
   drawing: DrawingMetadata;
+  thumbnail?: boolean;
 }) => {
-  const container = useRef<HTMLDivElement>(null);
+  const container = useRef<HTMLSpanElement>(null);
   const [preview, setPreview] = useState<{
     readonly key: string;
     readonly source: string | null;
@@ -161,14 +175,33 @@ export const ServerDrawingPreview = ({
     }
     let mounted = true;
     let cancel: (() => void) | undefined;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        cancel ??= requestPreview(key, drawing.id, (source) => {
+    let timer: number | undefined;
+    const load = () => {
+      timer = undefined;
+      cancel ??= requestPreview(
+        key,
+        drawing.id,
+        (source) => {
           if (mounted) {
             setPreview({ key, source });
           }
-        });
+        },
+        !thumbnail,
+      );
+    };
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        if (!cancel && timer === undefined) {
+          // Let the selected preview start first, and skip rows scrolled past.
+          if (thumbnail) {
+            timer = window.setTimeout(load, 120);
+          } else {
+            load();
+          }
+        }
       } else {
+        window.clearTimeout(timer);
+        timer = undefined;
         cancel?.();
         cancel = undefined;
         setPreview(null);
@@ -177,21 +210,37 @@ export const ServerDrawingPreview = ({
     observer.observe(node);
     return () => {
       mounted = false;
+      window.clearTimeout(timer);
       observer.disconnect();
       cancel?.();
     };
-  }, [drawing.id, key]);
+  }, [drawing.id, key, thumbnail]);
 
   const source = preview?.key === key ? preview.source : undefined;
   return (
-    <div ref={container} className={styles.preview}>
+    <span
+      ref={container}
+      className={`${styles.preview} ${thumbnail ? styles.thumbnail : ""}`}
+      aria-hidden={thumbnail || undefined}
+    >
       {source ? (
-        <img src={source} alt={`Preview of ${drawing.name}`} />
+        <img
+          src={source}
+          alt={thumbnail ? "" : `Preview of ${drawing.name}`}
+          draggable={false}
+          decoding="async"
+        />
       ) : (
         <span>
-          {source === null ? "Preview unavailable" : "Loading preview…"}
+          {thumbnail
+            ? source === null
+              ? "—"
+              : "…"
+            : source === null
+            ? "Preview unavailable"
+            : "Loading preview…"}
         </span>
       )}
-    </div>
+    </span>
   );
 };

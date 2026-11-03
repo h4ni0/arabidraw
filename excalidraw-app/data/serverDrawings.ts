@@ -1,3 +1,7 @@
+import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
+
+import type { AppState } from "@excalidraw/excalidraw/types";
+
 export interface DrawingMetadata {
   readonly id: string;
   readonly name: string;
@@ -62,6 +66,45 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 
 export const listDrawings = () => request<DrawingMetadata[]>("");
 
+export interface DrawingFolder {
+  readonly id: string;
+  readonly name: string;
+  readonly parentId: string | null;
+}
+
+export interface FolderCatalog {
+  readonly folders: readonly DrawingFolder[];
+  readonly drawingFolders: Readonly<Record<string, string>>;
+}
+
+export const listDrawingFolders = () => request<FolderCatalog>("/folders");
+
+export const saveDrawingFolder = (
+  id: string | null,
+  name: string,
+  parentId?: string | null,
+) =>
+  request<FolderCatalog>(
+    id ? `/folders/${encodeURIComponent(id)}` : "/folders",
+    {
+      method: id ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, parentId }),
+    },
+  );
+
+export const deleteDrawingFolder = (id: string) =>
+  request<FolderCatalog>(`/folders/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+
+export const moveDrawingToFolder = (id: string, folderId: string | null) =>
+  request<FolderCatalog>(`/${encodeURIComponent(id)}/folder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ folderId }),
+  });
+
 export const getDrawing = (id: string, signal?: AbortSignal) =>
   request<ServerDrawing>(`/${encodeURIComponent(id)}`, { signal });
 
@@ -92,3 +135,48 @@ export const deleteDrawing = (drawing: DrawingMetadata) =>
     method: "DELETE",
     headers: { "If-Match": `"${drawing.revision}"` },
   });
+
+// Use the same restoration and image validation for a URL and a gallery load.
+export const restoreServerDrawing = async (
+  id: string,
+  localAppState: AppState | null,
+) => {
+  const result = await getDrawing(id);
+  const restored = await loadFromBlob(
+    new Blob([JSON.stringify(result.scene)], { type: "application/json" }),
+    localAppState,
+    null,
+  );
+  for (const element of restored.elements) {
+    if (!element.isDeleted && element.type === "image") {
+      const file = element.fileId ? restored.files[element.fileId] : null;
+      if (
+        !file ||
+        typeof file.dataURL !== "string" ||
+        typeof file.mimeType !== "string"
+      ) {
+        throw new Error(
+          "This drawing contains a missing or invalid embedded image. Your canvas has not been replaced.",
+        );
+      }
+    }
+  }
+  return {
+    ...restored,
+    appState: {
+      ...restored.appState,
+      name: result.name,
+      serverDrawing: {
+        id: result.id,
+        name: result.name,
+        updatedAt: result.updatedAt,
+        revision: result.revision,
+      },
+      selectedElementIds: {},
+      selectedGroupIds: {},
+      editingGroupId: null,
+      openDialog: null,
+      fileHandle: null,
+    },
+  };
+};

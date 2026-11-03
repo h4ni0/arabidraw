@@ -91,6 +91,10 @@ const saveDataStateToLocalStorage = (
       sessionStorage.setItem(
         STORAGE_KEYS.SESSION_STORAGE_DRAFT,
         JSON.stringify({
+          // This is a recovery snapshot, never a pointer to the active drawing.
+          // It may only be restored when its ID matches the URL.
+          drawingId: appState.serverDrawing?.id ?? null,
+          baseDrawing: appState.serverDrawing,
           elements: getNonDeletedElements(elements),
           appState: _appState,
         }),
@@ -103,9 +107,13 @@ const saveDataStateToLocalStorage = (
       } catch {}
     }
 
+    // Only an unnamed draft can be restored at the root URL. Saved drawings
+    // are fetched by URL in new tabs, never selected from shared storage.
     localStorage.setItem(
       STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS,
-      JSON.stringify(getNonDeletedElements(elements)),
+      JSON.stringify(
+        appState.serverDrawing ? [] : getNonDeletedElements(elements),
+      ),
     );
     localStorage.setItem(
       STORAGE_KEYS.LOCAL_STORAGE_APP_STATE,

@@ -22,3 +22,14 @@
     text-align: center;
   }
 }
+
+.thumbnail {
+  flex: 0 0 3.75rem;
+  width: 3.75rem;
+  height: 2.8125rem;
+  align-self: center;
+  border-radius: 0.35rem;
+  span {
+    padding: 0;
+  }
+}
